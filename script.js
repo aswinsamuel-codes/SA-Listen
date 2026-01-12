@@ -315,7 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setupReferenceAnalyser();
 
             isListening = true;
-            startSingingBtn.textContent = 'Stop Singing';
             pitchUserNoteEl.textContent = 'Listening a0 b7 a0Stay close to your mic';
 
             // Kick off the animation loop that continuously reads microphone
