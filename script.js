@@ -546,6 +546,11 @@ document.addEventListener('DOMContentLoaded', () => {
             wasAudioPlayingWhenStopped = false;
         }
 
+        // Restore reference track volume
+        if (audioPlayer) {
+            audioPlayer.volume = originalRefVolume;
+        }
+
         startSingingBtn.textContent = 'Start Singing';
         // Keep reference, but go back to a waiting UI
         resetPitchPanel();
@@ -619,7 +624,22 @@ document.addEventListener('DOMContentLoaded', () => {
             pitchUserNoteEl.textContent = 'Live microphone';
 
             // Compare against target frequency in cents
-            const centsDiff = frequencyToCentsOffset(pitch, TARGET_FREQUENCY);
+            // Update Target Display with dynamic reference pitch if available
+            if (referenceFrequency) {
+                pitchTargetEl.textContent = `${referenceFrequency.toFixed(1)} Hz`;
+                const refNote = frequencyToNoteName(referenceFrequency);
+                if (refNote) {
+                    // Update the note label below the target Hz if it exists
+                    const targetNoteEl = pitchTargetEl.parentElement.querySelector('.pitch-note');
+                    if (targetNoteEl) targetNoteEl.textContent = refNote;
+                }
+            } else {
+                pitchTargetEl.textContent = `${TARGET_FREQUENCY} Hz`;
+            }
+
+            // Compare against dynamic reference frequency if available, otherwise static target
+            const currentTarget = referenceFrequency || TARGET_FREQUENCY;
+            const centsDiff = frequencyToCentsOffset(pitch, currentTarget);
             const absCents = Math.abs(centsDiff);
 
             pitchStatusEl.classList.remove('status-match', 'status-near', 'status-waiting');
@@ -645,323 +665,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Estimate the dominant note across the reference track by
-     * sampling short frames and running the same pitch detector used
-     * for the microphone. This gives an approximate main note/root
-     * that we display as the song's main chord.
+     * Start Singing button handler
      */
-    function estimateDominantNote(channelData, sampleRate) {
-        const frameSize = 2048;
-        const hopSize = 1024;
-
-        // Analyze up to the first ~20 seconds for speed.
-        const maxSamples = Math.min(channelData.length, sampleRate * 20);
-
-        const noteCounts = Object.create(null);
-        const frame = new Float32Array(frameSize);
-
-        for (let start = 0; start + frameSize < maxSamples; start += hopSize) {
-            for (let i = 0; i < frameSize; i++) {
-                frame[i] = channelData[start + i];
-            }
-
-            const freq = detectPitch(frame, sampleRate);
-            if (!freq) continue;
-
-            const noteName = frequencyToNoteName(freq);
-            if (!noteName) continue;
-
-            noteCounts[noteName] = (noteCounts[noteName] || 0) + 1;
+    startSingingBtn.addEventListener('click', () => {
+        if (!hasReferenceTrack && !hasSpotifyTrack) {
+            alert("Please load a reference track or Spotify track first.");
+            return;
         }
 
-        let bestNote = null;
-        let bestCount = 0;
-        for (const [name, count] of Object.entries(noteCounts)) {
-            if (count > bestCount) {
-                bestCount = count;
-                bestNote = name;
-            }
+        if (isListening) return; // already running
+
+        startMicrophone();
+
+        // Duck the reference volume to reduce bleed
+        if (audioPlayer) {
+            originalRefVolume = audioPlayer.volume;
+            audioPlayer.volume = Math.max(0, originalRefVolume * 0.3);
         }
 
-        return bestNote;
-    }
-
-    /**
-     * Attach the <audio> element used for the reference track to the
-     * shared AudioContext via its own AnalyserNode. This lets us run
-     * the same time-domain pitch detection on the reference audio
-     * that we already use for the microphone.
-     */
-    function setupReferenceAnalyser() {
-        if (!audioContext || !audioPlayer) return;
-        if (referenceAnalyser || referenceSource) return; // Already connected for this context
-
-        try {
-            // createMediaElementSource taps the <audio> element into
-            // the Web Audio graph. Once we do this, we are
-            // responsible for routing it to the speakers via
-            // audioContext.destination.
-            referenceSource = audioContext.createMediaElementSource(audioPlayer);
-            referenceAnalyser = audioContext.createAnalyser();
-            referenceAnalyser.fftSize = 2048;
-            referenceTimeDomainData = new Float32Array(referenceAnalyser.fftSize);
-
-            // Audio routing for the reference track:
-            //   <audio> element -> referenceAnalyser -> destination
-            // This lets us both hear the backing track and analyze it
-            // in real time for pitch extraction.
-            referenceSource.connect(referenceAnalyser);
-            referenceAnalyser.connect(audioContext.destination);
-        } catch (err) {
-            console.error('Error setting up reference analyser:', err);
-            referenceAnalyser = null;
-            referenceSource = null;
-            referenceTimeDomainData = null;
+        // If the reference audio was playing when the user last
+        // pressed Stop, resume it from the same position.
+        if (audioPlayer && wasAudioPlayingWhenStopped && audioPlayer.paused) {
+            audioPlayer.play().catch(() => {
+                // Ignore play errors (e.g., if browser blocks it)
+            });
         }
-    }
-
-    /**
-     * Store the latest reference/user frequencies into a sliding
-     * history buffer and schedule a canvas redraw at ~30 FPS.
-     */
-    function addFrequenciesToGraph(refFreq, userFreq) {
-        if (!pitchGraphCtx || !pitchGraphCanvas) return;
-
-        refFreqHistory.push(refFreq);
-        userFreqHistory.push(userFreq);
-
-        if (refFreqHistory.length > GRAPH_HISTORY) {
-            refFreqHistory.shift();
-            userFreqHistory.shift();
-        }
-
-        const now = (window.performance && performance.now) ? performance.now() : Date.now();
-        if (now - lastGraphDrawTime >= 33) { // ~30 FPS
-            drawPitchGraph();
-            lastGraphDrawTime = now;
-        }
-    }
-
-    /**
-     * Redraw the live frequency comparison graph on the canvas.
-     * X-axis: time (oldest on the left, newest on the right).
-     * Y-axis: frequency in Hz, clamped to 50–1000 Hz.
-     * Blue line: reference; Red line: user.
-     */
-    function drawPitchGraph() {
-        if (!pitchGraphCtx || !pitchGraphCanvas) return;
-
-        const width = pitchGraphCanvas.width;
-        const height = pitchGraphCanvas.height;
-        const len = refFreqHistory.length;
-
-        // Clear previous frame
-        pitchGraphCtx.clearRect(0, 0, width, height);
-
-        if (len < 2) return;
-
-        // Helper: map frequency in Hz to Y pixel coordinate
-        const freqToY = (freq) => {
-            if (freq == null || Number.isNaN(freq)) return null;
-
-            // Clamp to vocal range
-            const f = Math.min(Math.max(freq, GRAPH_MIN_FREQ), GRAPH_MAX_FREQ);
-            const ratio = (f - GRAPH_MIN_FREQ) / (GRAPH_MAX_FREQ - GRAPH_MIN_FREQ);
-            return height - ratio * height;
-        };
-
-        // Draw reference frequency line (blue)
-        pitchGraphCtx.lineWidth = 2;
-        pitchGraphCtx.strokeStyle = '#3B82F6';
-        pitchGraphCtx.globalAlpha = 0.95;
-        pitchGraphCtx.beginPath();
-
-        let move = true;
-        for (let i = 0; i < len; i++) {
-            const x = (i / (len - 1)) * width;
-            const y = freqToY(refFreqHistory[i]);
-            if (y == null) {
-                move = true;
-                continue;
-            }
-            if (move) {
-                pitchGraphCtx.moveTo(x, y);
-                move = false;
-            } else {
-                pitchGraphCtx.lineTo(x, y);
-            }
-        }
-        pitchGraphCtx.stroke();
-
-        // Draw user pitch line (red)
-        pitchGraphCtx.strokeStyle = '#F97373';
-        pitchGraphCtx.globalAlpha = 0.95;
-        pitchGraphCtx.beginPath();
-        move = true;
-
-        for (let i = 0; i < len; i++) {
-            const x = (i / (len - 1)) * width;
-            const y = freqToY(userFreqHistory[i]);
-            if (y == null) {
-                move = true;
-                continue;
-            }
-            if (move) {
-                pitchGraphCtx.moveTo(x, y);
-                move = false;
-            } else {
-                pitchGraphCtx.lineTo(x, y);
-            }
-        }
-        pitchGraphCtx.stroke();
-
-        // Reset alpha for any later drawing
-        pitchGraphCtx.globalAlpha = 1;
-    }
-
-    /**
-     * Autocorrelation-based pitch detection working directly in the
-     * time domain.
-     *
-     * Steps:
-     * 1. Check the signal energy (RMS) to ignore silence / noise.
-     * 2. Compute the autocorrelation R(lag) over a range of lags that
-     *    correspond to the desired vocal range (50–1000 Hz).
-     * 3. Find the lag with the highest correlation (best repeating
-     *    pattern).
-     * 4. Convert that lag into a fundamental frequency:
-     *        f0 = sampleRate / lag
-     *
-     * Returns a frequency in Hz between 50 and 1000, or null if no
-     * clear pitch is present.
-     */
-    function detectPitch(timeData, sampleRate) {
-        const size = timeData.length;
-
-        // 1) Signal energy check via RMS
-        let rms = 0;
-        for (let i = 0; i < size; i++) {
-            const val = timeData[i];
-            rms += val * val;
-        }
-        rms = Math.sqrt(rms / size);
-        if (rms < 0.01) {
-            // Too quiet: likely no input or just background noise.
-            return null;
-        }
-
-        // We focus only on the lag range that can represent typical
-        // vocal fundamentals.
-        const MIN_FREQUENCY = 50;   // Hz
-        const MAX_FREQUENCY = 1000; // Hz
-
-        // lag = sampleRate / frequency
-        let minLag = Math.floor(sampleRate / MAX_FREQUENCY);
-        let maxLag = Math.floor(sampleRate / MIN_FREQUENCY);
-
-        // Keep lags within the buffer
-        minLag = Math.max(1, minLag);
-        maxLag = Math.min(size - 1, maxLag);
-
-        // Autocorrelation at lag 0 is the signal energy, used to
-        // normalize other lags.
-        let r0 = 0;
-        for (let i = 0; i < size; i++) {
-            r0 += timeData[i] * timeData[i];
-        }
-        if (r0 === 0) {
-            return null;
-        }
-
-        let bestLag = -1;
-        let bestCorrelation = 0;
-
-        // 2) Compute R(lag) for the desired lag range
-        for (let lag = minLag; lag <= maxLag; lag++) {
-            let sum = 0;
-            for (let i = 0; i < size - lag; i++) {
-                sum += timeData[i] * timeData[i + lag];
-            }
-
-            if (sum > bestCorrelation) {
-                bestCorrelation = sum;
-                bestLag = lag;
-            }
-        }
-
-        if (bestLag === -1) {
-            return null;
-        }
-
-        // Normalize the best correlation value against the zero-lag
-        // autocorrelation to ignore low-confidence results.
-        const normalizedCorrelation = bestCorrelation / r0;
-        if (normalizedCorrelation < 0.3) {
-            return null;
-        }
-
-        // 3) Convert the best lag to a frequency
-        const frequency = sampleRate / bestLag;
-
-        // 4) Clamp to a realistic vocal range
-        if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) {
-            return null;
-        }
-
-        return frequency;
-    }
-
-    /**
-     * Convert a frequency difference into cents relative to a target
-     * frequency. 1200 cents = 1 octave.
-     */
-    function frequencyToCentsOffset(freq, targetFreq) {
-        return 1200 * Math.log2(freq / targetFreq);
-    }
-
-    /**
-     * Map a frequency in Hz to a musical note name with octave
-     * (e.g. A4, C#3). This is used for displaying an approximate
-     * main chord/root for the reference track.
-     */
-    function frequencyToNoteName(freq) {
-        if (!freq || !isFinite(freq)) return null;
-
-        const A4 = 440;
-        const semitonesFromA4 = Math.round(12 * Math.log2(freq / A4));
-        const midi = 69 + semitonesFromA4; // MIDI note number for A4 is 69
-
-        if (midi < 0 || midi > 127) return null;
-
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const indexFromC = (midi - 60 + 1200) % 12; // 60 is middle C (C4)
-        const noteName = noteNames[indexFromC];
-        const octave = Math.floor(midi / 12) - 1;
-
-        return `${noteName}${octave}`;
-    }
-
-    // Wire up Start / Stop singing controls
-    if (startSingingBtn) {
-        startSingingBtn.addEventListener('click', () => {
-            if (!hasReferenceTrack && !hasSpotifyTrack) {
-                alert('Connect a Spotify track or upload a reference track first.');
-                return;
-            }
-
-            if (isListening) return; // already running
-
-            startMicrophone();
-
-            // If the reference audio was playing when the user last
-            // pressed Stop, resume it from the same position.
-            if (audioPlayer && wasAudioPlayingWhenStopped && audioPlayer.paused) {
-                audioPlayer.play().catch(() => {
-                    // Ignore play errors (e.g., if browser blocks it)
-                });
-            }
-        });
-    }
+    });
 
     if (stopSingingBtn) {
         stopSingingBtn.addEventListener('click', () => {
@@ -969,4 +698,239 @@ document.addEventListener('DOMContentLoaded', () => {
             stopMicrophone();
         });
     }
+
+    /**
+     * Set up the Web Audio analyser for the reference track.
+     */
+    function setupReferenceAnalyser() {
+        if (!audioContext || !audioPlayer) return;
+        if (referenceSource) return; // already created
+
+        try {
+            referenceSource = audioContext.createMediaElementSource(audioPlayer);
+            referenceAnalyser = audioContext.createAnalyser();
+            referenceAnalyser.fftSize = 2048;
+
+            referenceSource.connect(referenceAnalyser);
+            referenceAnalyser.connect(audioContext.destination);
+
+            referenceTimeDomainData = new Float32Array(referenceAnalyser.fftSize);
+        } catch (err) {
+            console.warn("Error setting up reference analyser (possibly already connected):", err);
+        }
+    }
+
+    /**
+     * Draw the live frequency graph.
+     */
+    function addFrequenciesToGraph(refFreq, userFreq) {
+        if (!pitchGraphCtx || !pitchGraphCanvas) return;
+
+        refFreqHistory.push(refFreq);
+        if (refFreqHistory.length > GRAPH_HISTORY) refFreqHistory.shift();
+
+        userFreqHistory.push(userFreq);
+        if (userFreqHistory.length > GRAPH_HISTORY) userFreqHistory.shift();
+
+        const w = pitchGraphCanvas.width;
+        const h = pitchGraphCanvas.height;
+        pitchGraphCtx.clearRect(0, 0, w, h);
+
+        // Grid lines (optional visuals)
+        pitchGraphCtx.strokeStyle = 'rgba(255,255,255,0.05)';
+        pitchGraphCtx.lineWidth = 1;
+        pitchGraphCtx.beginPath();
+        // Draw 3 horizontal lines at approx 200, 440, 800 Hz
+        [200, 440, 800].forEach(freq => {
+            const pct = (freq - GRAPH_MIN_FREQ) / (GRAPH_MAX_FREQ - GRAPH_MIN_FREQ);
+            const y = h - (Math.min(Math.max(pct, 0), 1) * h);
+            pitchGraphCtx.moveTo(0, y);
+            pitchGraphCtx.lineTo(w, y);
+        });
+        pitchGraphCtx.stroke();
+
+        drawPath(refFreqHistory, '#3b82f6', 2, w, h); // Blue
+        drawPath(userFreqHistory, '#ef4444', 3, w, h); // Red
+    }
+
+    function drawPath(data, color, lineWidth, w, h) {
+        pitchGraphCtx.beginPath();
+        pitchGraphCtx.strokeStyle = color;
+        pitchGraphCtx.lineWidth = lineWidth;
+        pitchGraphCtx.lineJoin = 'round';
+
+        let pathStarted = false;
+
+        for (let i = 0; i < data.length; i++) {
+            const freq = data[i];
+            if (freq == null) {
+                pathStarted = false;
+                continue;
+            }
+
+            const x = (i / (GRAPH_HISTORY - 1)) * w;
+            const pct = (freq - GRAPH_MIN_FREQ) / (GRAPH_MAX_FREQ - GRAPH_MIN_FREQ);
+            const y = h - (Math.min(Math.max(pct, 0), 1) * h);
+
+            if (!pathStarted) {
+                pitchGraphCtx.moveTo(x, y);
+                pathStarted = true;
+            } else {
+                pitchGraphCtx.lineTo(x, y);
+            }
+        }
+        pitchGraphCtx.stroke();
+    }
 });
+
+/**
+ * Autocorrelation-based pitch detection working directly in the
+ * time domain.
+ */
+function detectPitch(timeData, sampleRate) {
+    const size = timeData.length;
+
+    // 1) Signal energy check via RMS
+    let rms = 0;
+    for (let i = 0; i < size; i++) {
+        const val = timeData[i];
+        rms += val * val;
+    }
+    rms = Math.sqrt(rms / size);
+    if (rms < 0.01) {
+        // Too quiet: likely no input or just background noise.
+        return null;
+    }
+
+    // We focus only on the lag range that can represent typical
+    // vocal fundamentals.
+    const MIN_FREQUENCY = 50;   // Hz
+    const MAX_FREQUENCY = 1000; // Hz
+
+    // lag = sampleRate / frequency
+    let minLag = Math.floor(sampleRate / MAX_FREQUENCY);
+    let maxLag = Math.floor(sampleRate / MIN_FREQUENCY);
+
+    // Keep lags within the buffer
+    minLag = Math.max(1, minLag);
+    maxLag = Math.min(size - 1, maxLag);
+
+    // Autocorrelation at lag 0 is the signal energy, used to
+    // normalize other lags.
+    let r0 = 0;
+    for (let i = 0; i < size; i++) {
+        r0 += timeData[i] * timeData[i];
+    }
+    if (r0 === 0) {
+        return null;
+    }
+
+    let bestLag = -1;
+    let bestCorrelation = 0;
+
+    // 2) Compute R(lag) for the desired lag range
+    for (let lag = minLag; lag <= maxLag; lag++) {
+        let sum = 0;
+        for (let i = 0; i < size - lag; i++) {
+            sum += timeData[i] * timeData[i + lag];
+        }
+
+        if (sum > bestCorrelation) {
+            bestCorrelation = sum;
+            bestLag = lag;
+        }
+    }
+
+    if (bestLag === -1) {
+        return null;
+    }
+
+    // Normalize the best correlation value against the zero-lag
+    // autocorrelation to ignore low-confidence results.
+    const normalizedCorrelation = bestCorrelation / r0;
+    if (normalizedCorrelation < 0.3) {
+        return null;
+    }
+
+    // 3) Convert the best lag to a frequency
+    const frequency = sampleRate / bestLag;
+
+    // 4) Clamp to a realistic vocal range
+    if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) {
+        return null;
+    }
+
+    return frequency;
+}
+
+/**
+ * Convert a frequency difference into cents relative to a target
+ * frequency. 1200 cents = 1 octave.
+ */
+function frequencyToCentsOffset(freq, targetFreq) {
+    return 1200 * Math.log2(freq / targetFreq);
+}
+
+/**
+ * Map a frequency in Hz to a musical note name with octave
+ * (e.g. A4, C#3). This is used for displaying an approximate
+ * main chord/root for the reference track.
+ */
+function frequencyToNoteName(freq) {
+    if (!freq || !isFinite(freq)) return null;
+
+    const A4 = 440;
+    const semitonesFromA4 = Math.round(12 * Math.log2(freq / A4));
+    const midi = 69 + semitonesFromA4; // MIDI note number for A4 is 69
+
+    if (midi < 0 || midi > 127) return null;
+
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const indexFromC = (midi - 60 + 1200) % 12; // 60 is middle C (C4)
+    const noteName = noteNames[indexFromC];
+    const octave = Math.floor(midi / 12) - 1;
+
+    return `${noteName}${octave}`;
+}
+
+/**
+ * Estimate the dominant note across the reference track by
+ * sampling short frames and running the same pitch detector used
+ * for the microphone. This gives an approximate main note/root
+ * that we display as the song's main chord.
+ */
+function estimateDominantNote(channelData, sampleRate) {
+    const frameSize = 2048;
+    const hopSize = 1024;
+
+    // Analyze up to the first ~20 seconds for speed.
+    const maxSamples = Math.min(channelData.length, sampleRate * 20);
+
+    const noteCounts = Object.create(null);
+    const frame = new Float32Array(frameSize);
+
+    for (let start = 0; start + frameSize < maxSamples; start += hopSize) {
+        for (let i = 0; i < frameSize; i++) {
+            frame[i] = channelData[start + i];
+        }
+
+        const freq = detectPitch(frame, sampleRate);
+        if (!freq) continue;
+
+        const noteName = frequencyToNoteName(freq);
+        if (!noteName) continue;
+
+        noteCounts[noteName] = (noteCounts[noteName] || 0) + 1;
+    }
+
+    let bestNote = null;
+    let bestCount = 0;
+    for (const [name, count] of Object.entries(noteCounts)) {
+        if (count > bestCount) {
+            bestCount = count;
+            bestNote = name;
+        }
+    }
+
+    return bestNote;
+}
