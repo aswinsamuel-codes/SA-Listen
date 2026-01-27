@@ -451,24 +451,33 @@ body {
     margin-bottom: 16px;
 }
 
-.song-analysis-row {
+.song-analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 16px;
+}
+
+.analysis-item {
     display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
 }
 
-.song-analysis-row:last-child {
-    border-bottom: none;
-}
-
-.song-analysis-label {
+.analysis-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
     color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
 }
 
-.song-analysis-value {
+.analysis-value {
+    font-size: 1.25rem;
     color: #FFF;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 /* Pitch Feedback Panel */
@@ -786,4 +795,128 @@ body {
     .pitch-values {
         grid-template-columns: 1fr;
     }
+}
+
+/* Active Recording State */
+.btn-recording {
+    background: #EF4444 !important;
+    color: white !important;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5) !important;
+    animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+    0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+/* Singing Report Card */
+.card-report {
+    border-color: rgba(255, 255, 255, 0.2);
+    animation: slideInUp 0.5s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.report-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+}
+
+.report-score-block {
+    display: flex;
+    justify-content: center;
+}
+
+.report-circle {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    border: 8px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0) 70%);
+    position: relative;
+}
+
+.report-percentage {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #FFF;
+    line-height: 1;
+}
+
+.report-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.report-details {
+    display: flex;
+    gap: 40px;
+    text-align: center;
+}
+
+.report-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.text-success {
+    color: #34D399;
+}
+
+.text-warning {
+    color: #FBBF24;
+}
+
+.text-error {
+    color: #EF4444;
+}
+
+.report-message {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #FFF;
+    text-align: center;
+    max-width: 400px;
+    line-height: 1.5;
 }

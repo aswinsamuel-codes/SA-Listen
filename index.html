@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,13 +12,15 @@
     <!-- Tempo analysis helper library -->
     <script src="https://unpkg.com/music-tempo@2.0.1/dist/music-tempo.min.js"></script>
 </head>
+
 <body>
     <!-- Header: simple black strip with logo + name -->
     <header class="app-header">
         <div class="container header-content">
             <div class="logo-container">
                 <!-- Logo now uses the banner from the shared logo folder -->
-                <img src="../logo/banner.png" alt="SA Listen Logo" class="logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                <img src="../logo/banner.png" alt="SA Listen Logo" class="logo"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
                 <div class="logo-fallback" style="display:none; font-weight:bold; font-size: 1.5rem;">SA</div>
                 <h1 class="app-name">SA Listen</h1>
             </div>
@@ -47,85 +50,68 @@
                 </div>
 
                 <div class="spotify-input">
-                    <input type="text" id="spotifyTrackInput" class="spotify-track-input" placeholder="Paste a Spotify track URL or ID" aria-label="Spotify track URL or ID">
+                    <input type="text" id="spotifyTrackInput" class="spotify-track-input"
+                        placeholder="Paste a Spotify track URL or ID" aria-label="Spotify track URL or ID">
                     <button type="button" class="btn btn-secondary" id="loadSpotifyBtn">Load track</button>
                 </div>
 
                 <div class="spotify-embed-wrapper">
                     <!-- Spotify embed used ONLY for playback UI; audio is NOT analyzed. -->
-                    <iframe id="spotifyPlayer" class="spotify-embed" style="border-radius:12px" src="" width="100%" height="152" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
-                </div>
-
-                <div class="spotify-meta">
-                    <div class="spotify-meta-main">
-                        <div class="spotify-cover" id="spotifyCoverPlaceholder" aria-hidden="true">♪</div>
-                        <img id="spotifyCover" class="spotify-cover-image" alt="Spotify album art" style="display:none;">
-                        <div class="spotify-text">
-                            <span class="spotify-title" id="spotifyTitle">No track loaded</span>
-                            <span class="spotify-artist" id="spotifyArtist">Connect a Spotify track above</span>
-                        </div>
-                    </div>
-                    <div class="spotify-features">
-                        <div class="spotify-feature">
-                            <span class="feature-label">Tempo</span>
-                            <span class="feature-value" id="spotifyTempo">--</span>
-                        </div>
-                        <div class="spotify-feature">
-                            <span class="feature-label">Key</span>
-                            <span class="feature-value" id="spotifyKey">--</span>
-                        </div>
-                        <div class="spotify-feature">
-                            <span class="feature-label">Time Sig.</span>
-                            <span class="feature-value" id="spotifyTimeSig">--</span>
-                        </div>
-                    </div>
+                    <iframe id="spotifyPlayer" class="spotify-embed" style="border-radius:12px" src="" width="100%"
+                        height="152" frameborder="0"
+                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                        loading="lazy"></iframe>
                 </div>
             </section>
 
             <!-- RIGHT PANEL: user reference upload (used for analysis) -->
             <section class="card card-reference" id="referenceCard">
-            <div class="card-header">
-                <div class="card-title-with-icon">
-                    <span class="card-icon" aria-hidden="true">♪</span>
-                    <div>
-                        <h2>Reference Track</h2>
-                        <p class="card-subtitle">Drop in a song to set your target.</p>
+                <div class="card-header">
+                    <div class="card-title-with-icon">
+                        <span class="card-icon" aria-hidden="true">♪</span>
+                        <div>
+                            <h2>Reference Track</h2>
+                            <p class="card-subtitle">Drop in a song to set your target.</p>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="upload-area" id="uploadArea">
-                <input type="file" id="audioUpload" accept="audio/*" hidden>
-                <div class="upload-visual">
-                    <div class="upload-wave">
-                        <span></span><span></span><span></span><span></span><span></span>
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="audioUpload" accept="audio/*" hidden>
+                    <div class="upload-visual">
+                        <div class="upload-wave">
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </div>
+                        <p class="upload-main">Drop a track here</p>
+                        <p class="upload-sub">or tap to browse from your device</p>
+                        <button class="btn btn-secondary" type="button"
+                            onclick="document.getElementById('audioUpload').click()">
+                            <span class="icon">＋</span>
+                            Choose audio
+                        </button>
+                        <p id="fileName" class="file-name">No file selected</p>
                     </div>
-                    <p class="upload-main">Drop a track here</p>
-                    <p class="upload-sub">or tap to browse from your device</p>
-                    <button class="btn btn-secondary" type="button" onclick="document.getElementById('audioUpload').click()">
-                        <span class="icon">＋</span>
-                        Choose audio
-                    </button>
-                    <p id="fileName" class="file-name">No file selected</p>
                 </div>
-            </div>
 
-            <div class="audio-preview hidden" id="audioPreviewContainer">
-                <audio id="audioPlayer" controls class="custom-audio"></audio>
-            </div>
+                <div class="audio-preview hidden" id="audioPreviewContainer">
+                    <audio id="audioPlayer" controls class="custom-audio"></audio>
+                </div>
 
-            <!-- Basic song analysis for the reference track -->
-            <div class="song-analysis" id="songAnalysis">
-                <h3 class="song-analysis-title">Song profile</h3>
-                <div class="song-analysis-row">
-                    <span class="song-analysis-label">Tempo</span>
-                    <span class="song-analysis-value" id="tempoValue">--</span>
+                <!-- Basic song analysis for the reference track -->
+                <!-- Basic song analysis for the reference track -->
+                <div class="song-analysis" id="songAnalysis">
+                    <h3 class="song-analysis-title">Song profile</h3>
+                    <div class="song-analysis-grid">
+                        <div class="analysis-item">
+                            <span class="analysis-label">Tempo</span>
+                            <span class="analysis-value" id="tempoValue">--</span>
+                        </div>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Main chord</span>
+                            <span class="analysis-value" id="chordValue">--</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="song-analysis-row">
-                    <span class="song-analysis-label">Main chord (approx)</span>
-                    <span class="song-analysis-value" id="chordValue">--</span>
-                </div>
-            </div>
             </section>
         </div>
 
@@ -166,7 +152,8 @@
                 <!-- Live frequency comparison graph (reference vs you) plus controls on the right -->
                 <div class="analysis-row">
                     <div class="pitch-graph">
-                        <canvas id="pitchGraph" width="600" height="140" aria-label="Live frequency comparison graph"></canvas>
+                        <canvas id="pitchGraph" width="600" height="140"
+                            aria-label="Live frequency comparison graph"></canvas>
                         <div class="pitch-graph-footer">
                             <p class="card-subtitle">
                                 Reference (blue) · You (red)
@@ -187,9 +174,52 @@
 
                     <div class="analysis-controls">
                         <p class="controls-label">Live singing</p>
-                        <button class="btn btn-primary btn-glow" id="startSingingBtn" type="button">Start Singing</button>
+                        <button class="btn btn-primary btn-glow" id="startSingingBtn" type="button">Start
+                            Singing</button>
                         <button class="btn btn-outline btn-glow" id="stopSingingBtn" type="button">Stop Singing</button>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SINGING REPORT: Shown after the session stops -->
+        <section class="card card-report hidden" id="reportCard" aria-label="Singing performance report">
+            <div class="card-header">
+                <div class="card-title-with-icon">
+                    <span class="card-icon" style="background: rgba(16, 185, 129, 0.2); color: #34D399;">★</span>
+                    <div>
+                        <h2>Session Report</h2>
+                        <p class="card-subtitle">How accurate was your singing?</p>
+                    </div>
+                </div>
+                <button class="btn btn-ghost" id="closeReportBtn" aria-label="Close report">Close</button>
+            </div>
+
+            <div class="report-body">
+                <div class="report-score-block">
+                    <div class="report-circle">
+                        <span class="report-percentage" id="reportScore">--%</span>
+                        <span class="report-label">Accuracy</span>
+                    </div>
+                </div>
+
+                <div class="report-details">
+                    <div class="report-stat">
+                        <span class="stat-value text-success" id="reportExcellent">0%</span>
+                        <span class="stat-label">Excellent</span>
+                    </div>
+                    <div class="report-stat">
+                        <span class="stat-value text-warning" id="reportNear">0%</span>
+                        <span class="stat-label">Good / Near</span>
+                    </div>
+                    <div class="report-stat">
+                        <span class="stat-value text-error" id="reportMiss">0%</span>
+                        <span class="stat-label">Off Pitch</span>
+                    </div>
+                </div>
+
+                <div class="report-feedback">
+                    <p id="reportMessage" class="report-message">Sing to generate a report.</p>
                 </div>
             </div>
         </section>
@@ -202,4 +232,5 @@
 
     <script src="script.js"></script>
 </body>
+
 </html>

@@ -25,6 +25,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const spotifyTempoSummaryEl = document.getElementById('spotifyTempoSummary');
     const chordSummaryEl = document.getElementById('chordSummary');
 
+    // Report Elements
+    const reportCard = document.getElementById('reportCard');
+    const closeReportBtn = document.getElementById('closeReportBtn');
+    const reportScoreEl = document.getElementById('reportScore');
+    const reportExcellentEl = document.getElementById('reportExcellent');
+    const reportNearEl = document.getElementById('reportNear');
+    const reportMissEl = document.getElementById('reportMiss');
+    const reportMessageEl = document.getElementById('reportMessage');
+
+    // Session Scoring
+    let sessionScore = { total: 0, match: 0, near: 0, miss: 0 };
+
     // Live pitch feedback panel elements
     const pitchTargetEl = document.getElementById('pitchTarget');
     const pitchUserEl = document.getElementById('pitchUser');
@@ -136,6 +148,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Clear the canvas and redraw an empty graph frame
                 pitchGraphCtx.clearRect(0, 0, pitchGraphCanvas.width, pitchGraphCanvas.height);
             }
+        });
+    }
+
+    if (closeReportBtn) {
+        closeReportBtn.addEventListener('click', () => {
+            if (reportCard) reportCard.classList.add('hidden');
         });
     }
 
@@ -315,11 +333,18 @@ document.addEventListener('DOMContentLoaded', () => {
             setupReferenceAnalyser();
 
             isListening = true;
+            pitchUserNoteEl.textContent = 'Listening...';
+            startSingingBtn.textContent = 'Mic Active';
+            startSingingBtn.classList.add('btn-recording');
+
+            // Reset session score
+            sessionScore = { total: 0, match: 0, near: 0, miss: 0 };
+            /*
             pitchUserNoteEl.textContent = 'Listening a0 b7 a0Stay close to your mic';
 
             // Kick off the animation loop that continuously reads microphone
             // data, runs pitch detection, and updates the UI.
-            updatePitchLoop();
+            */ updatePitchLoop();
         } catch (err) {
             console.error('Error accessing microphone:', err);
             alert('Unable to access microphone. Please check your permissions.');
@@ -546,6 +571,10 @@ document.addEventListener('DOMContentLoaded', () => {
             wasAudioPlayingWhenStopped = false;
         }
 
+        startSingingBtn.classList.remove('btn-recording');
+
+        // Restore reference track volume
+
         // Restore reference track volume
         if (audioPlayer) {
             audioPlayer.volume = originalRefVolume;
@@ -556,9 +585,38 @@ document.addEventListener('DOMContentLoaded', () => {
         resetPitchPanel();
 
         // Reference track volume is left unchanged; users control it
-        // directly via the built-in audio player UI. The shared
         // AudioContext remains available so pausing/playing the
         // track continues to work without needing to recreate nodes.
+
+        generateReport();
+    }
+
+    function generateReport() {
+        if (!reportCard) return;
+
+        const { total, match, near, miss } = sessionScore;
+        if (total < 50) {
+            // Not enough data
+            return;
+        }
+
+        const score = Math.round(((match + near * 0.5) / total) * 100);
+
+        reportScoreEl.textContent = `${score}%`;
+        reportExcellentEl.textContent = `${Math.round((match / total) * 100)}%`;
+        reportNearEl.textContent = `${Math.round((near / total) * 100)}%`;
+        reportMissEl.textContent = `${Math.round((miss / total) * 100)}%`;
+
+        let msg = "Keep practicing!";
+        if (score > 85) msg = "Incredible! You nailed specific nuances.";
+        else if (score > 70) msg = "Great job! You were mostly on pitch.";
+        else if (score > 50) msg = "Good effort. Try to listen closely to the reference.";
+
+        reportMessageEl.textContent = msg;
+        reportCard.classList.remove('hidden');
+
+        // Scroll to report
+        reportCard.scrollIntoView({ behavior: 'smooth' });
     }
 
     /**
@@ -647,13 +705,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (absCents <= 20) {
                 pitchStatusEl.textContent = 'Match';
                 pitchStatusEl.classList.add('status-match');
+                sessionScore.match++;
             } else if (absCents <= 50) {
                 pitchStatusEl.textContent = 'Near';
                 pitchStatusEl.classList.add('status-near');
+                sessionScore.near++;
             } else {
                 pitchStatusEl.textContent = 'Off';
                 // Off uses the default pill styling (no extra class)
+                sessionScore.miss++;
             }
+            sessionScore.total++;
+
+            pitchCardEl.classList.add('is-active');
 
             pitchCardEl.classList.add('is-active');
 
