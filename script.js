@@ -15,13 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const spotifyTrackInput = document.getElementById('spotifyTrackInput');
     const loadSpotifyBtn = document.getElementById('loadSpotifyBtn');
     const spotifyPlayer = document.getElementById('spotifyPlayer');
-    const spotifyCoverPlaceholder = document.getElementById('spotifyCoverPlaceholder');
-    const spotifyCoverImg = document.getElementById('spotifyCover');
-    const spotifyTitleEl = document.getElementById('spotifyTitle');
-    const spotifyArtistEl = document.getElementById('spotifyArtist');
-    const spotifyTempoEl = document.getElementById('spotifyTempo');
-    const spotifyKeyEl = document.getElementById('spotifyKey');
-    const spotifyTimeSigEl = document.getElementById('spotifyTimeSig');
+    // REMOVED: Metadata elements (title, artist, cover, etc) as requested
     const spotifyTempoSummaryEl = document.getElementById('spotifyTempoSummary');
     const chordSummaryEl = document.getElementById('chordSummary');
 
@@ -462,55 +456,30 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            // Fetch basic track info
-            const trackResp = await fetch(`https://api.spotify.com/v1/tracks/${encodeURIComponent(trackId)}`, { headers });
-            if (!trackResp.ok) throw new Error('Failed to fetch track metadata');
-            const track = await trackResp.json();
-
-            // Update title/artist/cover
-            spotifyTitleEl.textContent = track.name || 'Unknown title';
-            const artistNames = (track.artists || []).map(a => a.name).join(', ');
-            spotifyArtistEl.textContent = artistNames || 'Unknown artist';
-
-            const image = track.album && track.album.images && track.album.images[0];
-            if (image && image.url) {
-                spotifyCoverImg.src = image.url;
-                spotifyCoverImg.style.display = 'block';
-                if (spotifyCoverPlaceholder) {
-                    spotifyCoverPlaceholder.style.display = 'none';
-                }
-            } else if (spotifyCoverPlaceholder) {
-                spotifyCoverImg.style.display = 'none';
-                spotifyCoverPlaceholder.style.display = 'flex';
-            }
+            // REMOVED: Metadata UI updates (Title, Artist, Cover) since the section is deleted.
+            // We still fetch features for internal logic (graph fallback).
 
             // Fetch audio features (tempo, key, time signature)
             const featuresResp = await fetch(`https://api.spotify.com/v1/audio-features/${encodeURIComponent(trackId)}`, { headers });
             if (!featuresResp.ok) throw new Error('Failed to fetch audio features');
             const features = await featuresResp.json();
 
-            // Tempo in BPM
+            // Tempo in BPM (only for summary)
             let tempoDisplay = '--';
             if (features.tempo && isFinite(features.tempo)) {
                 tempoDisplay = `${features.tempo.toFixed(1)} BPM`;
             }
-            spotifyTempoEl.textContent = tempoDisplay;
+            // spotifyTempoEl.textContent = tempoDisplay; // Element removed
             if (spotifyTempoSummaryEl) {
                 spotifyTempoSummaryEl.textContent = tempoDisplay;
             }
 
             // Musical key (Spotify returns 0–11, where 0 = C)
             const keyNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-            let keyDisplay = '--';
+
             spotifyReferenceFrequency = null;
             if (typeof features.key === 'number' && features.key >= 0 && features.key < keyNames.length) {
                 const keyIndex = features.key;
-                keyDisplay = keyNames[keyIndex] || '--';
-                if (features.mode === 1) {
-                    keyDisplay += ' major';
-                } else if (features.mode === 0) {
-                    keyDisplay += ' minor';
-                }
 
                 // Derive a mid-range reference frequency for the
                 // song key's tonic (e.g., C4–B4). This uses only
@@ -520,14 +489,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const semitonesFromA4 = midi - 69; // A4 = 69
                 spotifyReferenceFrequency = 440 * Math.pow(2, semitonesFromA4 / 12);
             }
-            spotifyKeyEl.textContent = keyDisplay;
-
-            // Time signature (e.g., 4/4)
-            let tsDisplay = '--';
-            if (features.time_signature && isFinite(features.time_signature)) {
-                tsDisplay = `${features.time_signature}/4`;
-            }
-            spotifyTimeSigEl.textContent = tsDisplay;
+            // spotifyKeyEl.textContent = keyDisplay; // Element removed
+            // spotifyTimeSigEl.textContent = tsDisplay; // Element removed
 
             // Enable singing controls when a Spotify track is
             // connected, even if no local reference file exists.
