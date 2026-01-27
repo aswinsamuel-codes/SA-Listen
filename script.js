@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadSpotifyBtn = document.getElementById('loadSpotifyBtn');
     const spotifyPlayer = document.getElementById('spotifyPlayer');
     // REMOVED: Metadata elements (title, artist, cover, etc) as requested
-    const spotifyTempoSummaryEl = document.getElementById('spotifyTempoSummary');
+    const tempoSummaryEl = document.getElementById('tempoSummary');
     const chordSummaryEl = document.getElementById('chordSummary');
 
     // Report Elements
@@ -403,11 +403,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 chordValueEl.textContent = chordText;
 
-                // Chord/tempo summary under the graph reflects the
-                // uploaded reference analysis (not Spotify).
-                if (chordSummaryEl) {
-                    chordSummaryEl.textContent = chordText;
-                }
+                // Update summary area as well
+                if (tempoSummaryEl) tempoSummaryEl.textContent = tempoText;
+                if (chordSummaryEl) chordSummaryEl.textContent = chordText;
 
                 if (songAnalysisSection) {
                     songAnalysisSection.style.opacity = '1';
@@ -438,7 +436,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSpotifyTrackId = trackId;
         hasSpotifyTrack = true;
 
-
         // Update the embed player to this track for playback only.
         spotifyPlayer.src = `https://open.spotify.com/embed/track/${encodeURIComponent(trackId)}`;
 
@@ -446,6 +443,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // token below. For security reasons, this demo expects you
         // to inject a token via environment or separate script.
         const SPOTIFY_ACCESS_TOKEN = window.SPOTIFY_ACCESS_TOKEN || '';
+
+        // Even if no token, we allow the embed to work.
         if (!SPOTIFY_ACCESS_TOKEN) {
             console.warn('No Spotify access token provided. Only the embed player will work.');
             return;
@@ -456,9 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            // REMOVED: Metadata UI updates (Title, Artist, Cover) since the section is deleted.
-            // We still fetch features for internal logic (graph fallback).
-
+            // We fetch features for internal logic (graph fallback).
             // Fetch audio features (tempo, key, time signature)
             const featuresResp = await fetch(`https://api.spotify.com/v1/audio-features/${encodeURIComponent(trackId)}`, { headers });
             if (!featuresResp.ok) throw new Error('Failed to fetch audio features');
@@ -469,9 +466,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (features.tempo && isFinite(features.tempo)) {
                 tempoDisplay = `${features.tempo.toFixed(1)} BPM`;
             }
-            // spotifyTempoEl.textContent = tempoDisplay; // Element removed
-            if (spotifyTempoSummaryEl) {
-                spotifyTempoSummaryEl.textContent = tempoDisplay;
+
+            if (tempoSummaryEl) {
+                tempoSummaryEl.textContent = tempoDisplay;
             }
 
             // Musical key (Spotify returns 0–11, where 0 = C)
@@ -489,8 +486,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const semitonesFromA4 = midi - 69; // A4 = 69
                 spotifyReferenceFrequency = 440 * Math.pow(2, semitonesFromA4 / 12);
             }
-            // spotifyKeyEl.textContent = keyDisplay; // Element removed
-            // spotifyTimeSigEl.textContent = tsDisplay; // Element removed
 
             // Enable singing controls when a Spotify track is
             // connected, even if no local reference file exists.
