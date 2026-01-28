@@ -363,73 +363,58 @@ document.addEventListener('DOMContentLoaded', () => {
      * This runs once per upload in the background and does not
      * affect live microphone analysis.
      */
-    function analyzeReferenceAudio(file) {
-        if (!file || !window.MusicTempo) {
-            // Library missing or no file - leave placeholders.
-            return;
-        }
+    async function analyzeReferenceAudio(file) {
+        if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            const arrayBuffer = event.target.result;
+        // Show loading state
+        if (tempoValueEl) tempoValueEl.textContent = '...';
+        if (chordValueEl) chordValueEl.textContent = '...';
+        if (tempoSummaryEl) tempoSummaryEl.textContent = '...';
+        if (chordSummaryEl) chordSummaryEl.textContent = '...';
 
-            try {
-                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                const ctx = new AudioContextClass();
-                const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
 
-                const channelData = audioBuffer.getChannelData(0);
+            // Call the python backend
+            const response = await fetch('http://127.0.0.1:8000/analyze', {
+                method: 'POST',
+                body: formData
+            });
 
-                // Optional: down-sample for speed on long tracks by
-                // picking every Nth sample.
-                const downSampleFactor = Math.max(1, Math.floor(audioBuffer.sampleRate / 44100));
-                const downSampled = new Float32Array(Math.floor(channelData.length / downSampleFactor));
-                for (let i = 0, j = 0; i < channelData.length; i += downSampleFactor, j++) {
-                    downSampled[j] = channelData[i];
-                }
-
-                // --- Tempo estimation (BPM) using MusicTempo ---
-                let tempoText = '--';
-                try {
-                    const mt = new MusicTempo(downSampled);
-                    if (mt && typeof mt.tempo === 'number' && isFinite(mt.tempo) && mt.tempo > 0) {
-                        tempoText = `${mt.tempo.toFixed(1)} BPM`;
-                    }
-                } catch (e) {
-                    console.warn('Tempo analysis failed:', e);
-                }
-
-                tempoValueEl.textContent = tempoText;
-
-                // --- Approximate main chord/root note ---
-                let chordText = '--';
-                try {
-                    const dominantNote = estimateDominantNote(channelData, audioBuffer.sampleRate);
-                    if (dominantNote) {
-                        chordText = dominantNote;
-                    }
-                } catch (e) {
-                    console.warn('Chord analysis failed:', e);
-                }
-
-                chordValueEl.textContent = chordText;
-
-                // Update summary area as well
-                if (tempoSummaryEl) tempoSummaryEl.textContent = tempoText;
-                if (chordSummaryEl) chordSummaryEl.textContent = chordText;
-
-                if (songAnalysisSection) {
-                    songAnalysisSection.style.opacity = '1';
-                }
-
-                ctx.close();
-            } catch (err) {
-                console.error('Error analyzing reference audio:', err);
+            if (!response.ok) {
+                // If backend fails/is down, fallback or show error
+                // For now, we'll just log it and maybe leave "..." or set to "--"
+                throw new Error(`Server returned ${response.status}`);
             }
-        };
 
-        reader.readAsArrayBuffer(file);
+            const data = await response.json();
+
+            // Update UI with backend results
+            const tempoText = data.tempo ? `${data.tempo} BPM` : '--';
+            const chordText = data.key || '--'; // Using 'key' as the main chord/key info
+
+            if (tempoValueEl) tempoValueEl.textContent = tempoText;
+            if (chordValueEl) chordValueEl.textContent = chordText;
+
+            if (tempoSummaryEl) tempoSummaryEl.textContent = tempoText;
+            if (chordSummaryEl) chordSummaryEl.textContent = chordText;
+
+            if (songAnalysisSection) {
+                songAnalysisSection.style.opacity = '1';
+            }
+
+        } catch (err) {
+            console.error('Error analyzing reference audio with backend:', err);
+            // Fallback UI update
+            if (tempoValueEl) tempoValueEl.textContent = '--';
+            if (chordValueEl) chordValueEl.textContent = '--';
+            if (tempoSummaryEl) tempoSummaryEl.textContent = '--';
+            if (chordSummaryEl) chordSummaryEl.textContent = '--';
+        }
     }
+
+
 
     /**
      * Load metadata for a Spotify track (tempo, key, time signature,
