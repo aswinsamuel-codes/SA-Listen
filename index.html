@@ -53,8 +53,8 @@
                     <input type="text" id="spotifyTrackInput" class="spotify-track-input"
                         placeholder="Paste a Spotify track URL or ID" aria-label="Spotify track URL or ID">
                     <button type="button" class="btn btn-secondary" id="loadSpotifyBtn">Load</button>
-                    <button type="button" class="btn btn-ghost" id="clearSpotifyBtn" aria-label="Remove track"
-                        style="display: none;">✕</button>
+                    <button type="button" class="btn btn-ghost btn-remove" id="clearSpotifyBtn"
+                        aria-label="Remove track" title="Remove track" style="display: none;">✕</button>
                 </div>
 
                 <div class="spotify-embed-wrapper">
@@ -97,8 +97,8 @@
 
                 <div class="audio-preview hidden" id="audioPreviewContainer">
                     <audio id="audioPlayer" controls class="custom-audio"></audio>
-                    <button id="removeReferenceBtn" class="btn btn-ghost" aria-label="Remove file"
-                        style="margin-top: 8px;">Remove</button>
+                    <button id="removeReferenceBtn" class="btn btn-ghost btn-remove" aria-label="Remove file"
+                        title="Remove reference track" style="margin-top: 8px;">Remove</button>
                 </div>
 
                 <!-- Basic song analysis for the reference track -->

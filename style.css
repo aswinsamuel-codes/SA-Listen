@@ -673,6 +673,12 @@ body {
     color: #FFF;
 }
 
+.btn-remove:hover {
+    color: #ef4444;
+    /* Red color */
+    background: rgba(239, 68, 68, 0.1);
+}
+
 .btn-glow {
     position: relative;
     overflow: hidden;
