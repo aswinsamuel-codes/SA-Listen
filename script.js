@@ -815,202 +815,201 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             pitchGraphCtx.stroke();
         }
+        // }); removed to extend scope
+
+        /**
+         * Autocorrelation-based pitch detection working directly in the
+         * time domain.
+         */
+        function detectPitch(timeData, sampleRate) {
+            const size = timeData.length;
+
+            // 1) Signal energy check via RMS
+            let rms = 0;
+            for (let i = 0; i < size; i++) {
+                const val = timeData[i];
+                rms += val * val;
+            }
+            rms = Math.sqrt(rms / size);
+            if (rms < 0.01) {
+                // Too quiet: likely no input or just background noise.
+                return null;
+            }
+
+            // We focus only on the lag range that can represent typical
+            // vocal fundamentals.
+            const MIN_FREQUENCY = 50;   // Hz
+            const MAX_FREQUENCY = 1000; // Hz
+
+            // lag = sampleRate / frequency
+            let minLag = Math.floor(sampleRate / MAX_FREQUENCY);
+            let maxLag = Math.floor(sampleRate / MIN_FREQUENCY);
+
+            // Keep lags within the buffer
+            minLag = Math.max(1, minLag);
+            maxLag = Math.min(size - 1, maxLag);
+
+            // Autocorrelation at lag 0 is the signal energy, used to
+            // normalize other lags.
+            let r0 = 0;
+            for (let i = 0; i < size; i++) {
+                r0 += timeData[i] * timeData[i];
+            }
+            if (r0 === 0) {
+                return null;
+            }
+
+            let bestLag = -1;
+            let bestCorrelation = 0;
+
+            // 2) Compute R(lag) for the desired lag range
+            for (let lag = minLag; lag <= maxLag; lag++) {
+                let sum = 0;
+                for (let i = 0; i < size - lag; i++) {
+                    sum += timeData[i] * timeData[i + lag];
+                }
+
+                if (sum > bestCorrelation) {
+                    bestCorrelation = sum;
+                    bestLag = lag;
+                }
+            }
+
+            if (bestLag === -1) {
+                return null;
+            }
+
+            // Normalize the best correlation value against the zero-lag
+            // autocorrelation to ignore low-confidence results.
+            const normalizedCorrelation = bestCorrelation / r0;
+            if (normalizedCorrelation < 0.3) {
+                return null;
+            }
+
+            // 3) Convert the best lag to a frequency
+            const frequency = sampleRate / bestLag;
+
+            // 4) Clamp to a realistic vocal range
+            if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) {
+                return null;
+            }
+
+            return frequency;
+        }
+
+        /**
+         * Convert a frequency difference into cents relative to a target
+         * frequency. 1200 cents = 1 octave.
+         */
+        function frequencyToCentsOffset(freq, targetFreq) {
+            return 1200 * Math.log2(freq / targetFreq);
+        }
+
+        /**
+         * Map a frequency in Hz to a musical note name with octave
+         * (e.g. A4, C#3). This is used for displaying an approximate
+         * main chord/root for the reference track.
+         */
+        function frequencyToNoteName(freq) {
+            if (!freq || !isFinite(freq)) return null;
+
+            const A4 = 440;
+            const semitonesFromA4 = Math.round(12 * Math.log2(freq / A4));
+            const midi = 69 + semitonesFromA4; // MIDI note number for A4 is 69
+
+            if (midi < 0 || midi > 127) return null;
+
+            const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            const indexFromC = (midi - 60 + 1200) % 12; // 60 is middle C (C4)
+            const noteName = noteNames[indexFromC];
+            const octave = Math.floor(midi / 12) - 1;
+
+            return `${noteName}${octave}`;
+        }
+
+        /**
+         * Estimate the dominant note across the reference track by
+         * sampling short frames and running the same pitch detector used
+         * for the microphone. This gives an approximate main note/root
+         * that we display as the song's main chord.
+         */
+        function estimateDominantNote(channelData, sampleRate) {
+            const frameSize = 2048;
+            const hopSize = 1024;
+
+            // Analyze up to the first ~20 seconds for speed.
+            const maxSamples = Math.min(channelData.length, sampleRate * 20);
+
+            const noteCounts = Object.create(null);
+            const frame = new Float32Array(frameSize);
+
+            for (let start = 0; start + frameSize < maxSamples; start += hopSize) {
+                for (let i = 0; i < frameSize; i++) {
+                    frame[i] = channelData[start + i];
+                }
+
+                const freq = detectPitch(frame, sampleRate);
+                if (!freq) continue;
+
+                const noteName = frequencyToNoteName(freq);
+                if (!noteName) continue;
+
+                noteCounts[noteName] = (noteCounts[noteName] || 0) + 1;
+            }
+
+            let bestNote = null;
+            let bestCount = 0;
+            for (const [name, count] of Object.entries(noteCounts)) {
+                if (count > bestCount) {
+                    bestCount = count;
+                    bestNote = name;
+                }
+            }
+
+            return bestNote;
+        }
+
+        function resetSpotifyTrack() {
+            if (spotifyPlayer) spotifyPlayer.src = '';
+            if (spotifyTrackInput) spotifyTrackInput.value = '';
+            if (clearSpotifyBtn) clearSpotifyBtn.style.display = 'none';
+
+            currentSpotifyTrackId = null;
+            hasSpotifyTrack = false;
+            spotifyReferenceFrequency = null;
+
+            // Clear summary if it came from Spotify (and no ref track)
+            if (tempoSummaryEl && !hasReferenceTrack) tempoSummaryEl.textContent = '--';
+
+            updateSingingControlsState();
+        }
+
+        function removeReferenceTrack() {
+            if (audioPlayer) {
+                audioPlayer.pause();
+                audioPlayer.src = '';
+            }
+            if (audioUpload) audioUpload.value = '';
+            if (fileNameDisplay) fileNameDisplay.textContent = 'No file selected';
+
+            if (audioPreviewContainer) audioPreviewContainer.classList.add('hidden');
+
+            // Clear analysis
+            if (tempoValueEl) tempoValueEl.textContent = '--';
+            if (chordValueEl) chordValueEl.textContent = '--';
+            if (songAnalysisSection) songAnalysisSection.style.opacity = '0.5';
+
+            if (tempoSummaryEl) tempoSummaryEl.textContent = '--';
+            if (chordSummaryEl) chordSummaryEl.textContent = '--';
+
+            hasReferenceTrack = false;
+
+            updateSingingControlsState();
+        }
+
+        function updateSingingControlsState() {
+            const canSing = hasReferenceTrack || hasSpotifyTrack;
+            if (startSingingBtn) startSingingBtn.disabled = !canSing;
+            if (stopSingingBtn) stopSingingBtn.disabled = !canSing;
+        }
     });
-
-/**
- * Autocorrelation-based pitch detection working directly in the
- * time domain.
- */
-function detectPitch(timeData, sampleRate) {
-    const size = timeData.length;
-
-    // 1) Signal energy check via RMS
-    let rms = 0;
-    for (let i = 0; i < size; i++) {
-        const val = timeData[i];
-        rms += val * val;
-    }
-    rms = Math.sqrt(rms / size);
-    if (rms < 0.01) {
-        // Too quiet: likely no input or just background noise.
-        return null;
-    }
-
-    // We focus only on the lag range that can represent typical
-    // vocal fundamentals.
-    const MIN_FREQUENCY = 50;   // Hz
-    const MAX_FREQUENCY = 1000; // Hz
-
-    // lag = sampleRate / frequency
-    let minLag = Math.floor(sampleRate / MAX_FREQUENCY);
-    let maxLag = Math.floor(sampleRate / MIN_FREQUENCY);
-
-    // Keep lags within the buffer
-    minLag = Math.max(1, minLag);
-    maxLag = Math.min(size - 1, maxLag);
-
-    // Autocorrelation at lag 0 is the signal energy, used to
-    // normalize other lags.
-    let r0 = 0;
-    for (let i = 0; i < size; i++) {
-        r0 += timeData[i] * timeData[i];
-    }
-    if (r0 === 0) {
-        return null;
-    }
-
-    let bestLag = -1;
-    let bestCorrelation = 0;
-
-    // 2) Compute R(lag) for the desired lag range
-    for (let lag = minLag; lag <= maxLag; lag++) {
-        let sum = 0;
-        for (let i = 0; i < size - lag; i++) {
-            sum += timeData[i] * timeData[i + lag];
-        }
-
-        if (sum > bestCorrelation) {
-            bestCorrelation = sum;
-            bestLag = lag;
-        }
-    }
-
-    if (bestLag === -1) {
-        return null;
-    }
-
-    // Normalize the best correlation value against the zero-lag
-    // autocorrelation to ignore low-confidence results.
-    const normalizedCorrelation = bestCorrelation / r0;
-    if (normalizedCorrelation < 0.3) {
-        return null;
-    }
-
-    // 3) Convert the best lag to a frequency
-    const frequency = sampleRate / bestLag;
-
-    // 4) Clamp to a realistic vocal range
-    if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) {
-        return null;
-    }
-
-    return frequency;
-}
-
-/**
- * Convert a frequency difference into cents relative to a target
- * frequency. 1200 cents = 1 octave.
- */
-function frequencyToCentsOffset(freq, targetFreq) {
-    return 1200 * Math.log2(freq / targetFreq);
-}
-
-/**
- * Map a frequency in Hz to a musical note name with octave
- * (e.g. A4, C#3). This is used for displaying an approximate
- * main chord/root for the reference track.
- */
-function frequencyToNoteName(freq) {
-    if (!freq || !isFinite(freq)) return null;
-
-    const A4 = 440;
-    const semitonesFromA4 = Math.round(12 * Math.log2(freq / A4));
-    const midi = 69 + semitonesFromA4; // MIDI note number for A4 is 69
-
-    if (midi < 0 || midi > 127) return null;
-
-    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const indexFromC = (midi - 60 + 1200) % 12; // 60 is middle C (C4)
-    const noteName = noteNames[indexFromC];
-    const octave = Math.floor(midi / 12) - 1;
-
-    return `${noteName}${octave}`;
-}
-
-/**
- * Estimate the dominant note across the reference track by
- * sampling short frames and running the same pitch detector used
- * for the microphone. This gives an approximate main note/root
- * that we display as the song's main chord.
- */
-function estimateDominantNote(channelData, sampleRate) {
-    const frameSize = 2048;
-    const hopSize = 1024;
-
-    // Analyze up to the first ~20 seconds for speed.
-    const maxSamples = Math.min(channelData.length, sampleRate * 20);
-
-    const noteCounts = Object.create(null);
-    const frame = new Float32Array(frameSize);
-
-    for (let start = 0; start + frameSize < maxSamples; start += hopSize) {
-        for (let i = 0; i < frameSize; i++) {
-            frame[i] = channelData[start + i];
-        }
-
-        const freq = detectPitch(frame, sampleRate);
-        if (!freq) continue;
-
-        const noteName = frequencyToNoteName(freq);
-        if (!noteName) continue;
-
-        noteCounts[noteName] = (noteCounts[noteName] || 0) + 1;
-    }
-
-    let bestNote = null;
-    let bestCount = 0;
-    for (const [name, count] of Object.entries(noteCounts)) {
-        if (count > bestCount) {
-            bestCount = count;
-            bestNote = name;
-        }
-    }
-
-    return bestNote;
-}
-}
-
-function resetSpotifyTrack() {
-    if (spotifyPlayer) spotifyPlayer.src = '';
-    if (spotifyTrackInput) spotifyTrackInput.value = '';
-    if (clearSpotifyBtn) clearSpotifyBtn.style.display = 'none';
-
-    currentSpotifyTrackId = null;
-    hasSpotifyTrack = false;
-    spotifyReferenceFrequency = null;
-
-    // Clear summary if it came from Spotify (and no ref track)
-    if (tempoSummaryEl && !hasReferenceTrack) tempoSummaryEl.textContent = '--';
-
-    updateSingingControlsState();
-}
-
-function removeReferenceTrack() {
-    if (audioPlayer) {
-        audioPlayer.pause();
-        audioPlayer.src = '';
-    }
-    if (audioUpload) audioUpload.value = '';
-    if (fileNameDisplay) fileNameDisplay.textContent = 'No file selected';
-
-    if (audioPreviewContainer) audioPreviewContainer.classList.add('hidden');
-
-    // Clear analysis
-    if (tempoValueEl) tempoValueEl.textContent = '--';
-    if (chordValueEl) chordValueEl.textContent = '--';
-    if (songAnalysisSection) songAnalysisSection.style.opacity = '0.5';
-
-    if (tempoSummaryEl) tempoSummaryEl.textContent = '--';
-    if (chordSummaryEl) chordSummaryEl.textContent = '--';
-
-    hasReferenceTrack = false;
-
-    updateSingingControlsState();
-}
-
-function updateSingingControlsState() {
-    const canSing = hasReferenceTrack || hasSpotifyTrack;
-    if (startSingingBtn) startSingingBtn.disabled = !canSing;
-    if (stopSingingBtn) stopSingingBtn.disabled = !canSing;
-}
-});
