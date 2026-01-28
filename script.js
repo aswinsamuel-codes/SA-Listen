@@ -99,6 +99,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let referenceTimeDomainData = null;
     let referenceSource = null;
 
+    // Dynamic chord timeline from backend
+    // Format: [{ time: 1.2, chord: 'C Maj' }, ...]
+    let currentChordSegments = [];
+
     // Initially, keep the singing controls disabled until a reference track is uploaded
     startSingingBtn.disabled = true;
     if (stopSingingBtn) stopSingingBtn.disabled = true;
@@ -394,6 +398,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const tempoText = data.tempo ? `${data.tempo} BPM` : '--';
             const chordText = data.key || '--'; // Using 'key' as the main chord/key info
 
+            // Store segments
+            if (data.chords && Array.isArray(data.chords)) {
+                currentChordSegments = data.chords;
+            } else {
+                currentChordSegments = [];
+            }
+
             if (tempoValueEl) tempoValueEl.textContent = tempoText;
             if (chordValueEl) chordValueEl.textContent = chordText;
 
@@ -586,6 +597,27 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Microphone pitch ---
         analyser.getFloatTimeDomainData(timeDomainData);
         const rawPitch = detectPitch(timeDomainData, audioContext.sampleRate);
+
+        // --- Dynamic Chord Update (Live during Reference Playback) ---
+        if (hasReferenceTrack && !audioPlayer.paused && currentChordSegments.length > 0) {
+            const t = audioPlayer.currentTime;
+            // Find current segment (simple linear search or findLast)
+            // segments are sorted by time.
+            let currentChord = null;
+            for (let i = 0; i < currentChordSegments.length; i++) {
+                if (t >= currentChordSegments[i].time) {
+                    currentChord = currentChordSegments[i].chord;
+                } else {
+                    // Passed the current time
+                    break;
+                }
+            }
+
+            if (currentChord) {
+                if (chordValueEl) chordValueEl.textContent = currentChord;
+                if (chordSummaryEl) chordSummaryEl.textContent = currentChord;
+            }
+        }
 
         // --- Reference track pitch (uploaded audio) ---
         let referenceFrequency = null;
