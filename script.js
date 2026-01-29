@@ -134,9 +134,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const stemsContainer = document.getElementById('stemsContainer');
     const resetSplitterBtn = document.getElementById('resetSplitterBtn');
     const stemVocals = document.getElementById('stemVocals');
-    const stemAccompaniment = document.getElementById('stemAccompaniment');
+    const stemDrums = document.getElementById('stemDrums');
+    const stemBass = document.getElementById('stemBass');
+    const stemPiano = document.getElementById('stemPiano');
+    const stemOther = document.getElementById('stemOther');
+
     const downloadVocals = document.getElementById('downloadVocals');
-    const downloadAccompaniment = document.getElementById('downloadAccompaniment');
+    const downloadDrums = document.getElementById('downloadDrums');
+    const downloadBass = document.getElementById('downloadBass');
+    const downloadPiano = document.getElementById('downloadPiano');
+    const downloadOther = document.getElementById('downloadOther');
 
     const removeSplitFileBtn = document.getElementById('removeSplitFileBtn');
 
@@ -187,15 +194,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const data = await response.json();
 
-                // Assuming backend returns { vocals: "/static/...", accompaniment: "/static/..." }
-                // We will rely on the backend serving these files statically or via an endpoint
-                // ideally returning base64 or a temp URL. For a local app, serving from static dir is easiest.
+                // data keys: vocals, drums, bass, piano, other
+                const baseUrl = 'http://127.0.0.1:8000';
 
-                stemVocals.src = `http://127.0.0.1:8000${data.vocals}`;
-                stemAccompaniment.src = `http://127.0.0.1:8000${data.accompaniment}`;
+                if (stemVocals) stemVocals.src = `${baseUrl}${data.vocals}`;
+                if (stemDrums) stemDrums.src = `${baseUrl}${data.drums}`;
+                if (stemBass) stemBass.src = `${baseUrl}${data.bass}`;
+                if (stemPiano) stemPiano.src = `${baseUrl}${data.piano}`;
+                if (stemOther) stemOther.src = `${baseUrl}${data.other}`;
 
-                downloadVocals.href = `http://127.0.0.1:8000${data.vocals}`;
-                downloadAccompaniment.href = `http://127.0.0.1:8000${data.accompaniment}`;
+                if (downloadVocals) downloadVocals.href = `${baseUrl}${data.vocals}`;
+                if (downloadDrums) downloadDrums.href = `${baseUrl}${data.drums}`;
+                if (downloadBass) downloadBass.href = `${baseUrl}${data.bass}`;
+                if (downloadPiano) downloadPiano.href = `${baseUrl}${data.piano}`;
+                if (downloadOther) downloadOther.href = `${baseUrl}${data.other}`;
 
                 stemsContainer.classList.remove('hidden');
 
