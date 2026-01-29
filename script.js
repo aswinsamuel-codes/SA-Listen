@@ -787,21 +787,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const absCents = Math.abs(centsDiff);
 
             pitchStatusEl.classList.remove('status-match', 'status-near', 'status-waiting');
+            if (pitchCardEl) pitchCardEl.classList.remove('pitch-glow-match', 'pitch-glow-near', 'pitch-glow-off');
 
             if (absCents <= 20) {
                 pitchStatusEl.textContent = 'Match';
                 pitchStatusEl.classList.add('status-match');
+                if (pitchCardEl) pitchCardEl.classList.add('pitch-glow-match');
                 sessionScore.match++;
             } else if (absCents <= 50) {
                 // "Near" - show direction
                 const direction = centsDiff > 0 ? 'High' : 'Low';
                 pitchStatusEl.textContent = `Near (${direction})`;
                 pitchStatusEl.classList.add('status-near');
+                if (pitchCardEl) pitchCardEl.classList.add('pitch-glow-near');
                 sessionScore.near++;
             } else {
                 // "Off" - show direction
                 const direction = centsDiff > 0 ? 'Too High' : 'Too Low';
                 pitchStatusEl.textContent = direction;
+                if (pitchCardEl) pitchCardEl.classList.add('pitch-glow-off');
                 // Off uses the default pill styling (no extra class)
                 sessionScore.miss++;
             }
@@ -1132,4 +1136,130 @@ document.addEventListener('DOMContentLoaded', () => {
         if (startSingingBtn) startSingingBtn.disabled = !canSing;
         if (stopSingingBtn) stopSingingBtn.disabled = !canSing;
     }
+
+    // --- VISUAL ENHANCEMENTS ENGINE ---
+
+    function setupFloatingVisuals() {
+        // Create container if missing
+        if (!document.querySelector('.ambient-notes')) {
+            const container = document.createElement('div');
+            container.className = 'ambient-notes';
+            document.body.appendChild(container);
+
+            // Add base static notes (CSS animated)
+            const notes = ['♪', '♫', '♬', '♩'];
+            for (let i = 0; i < 4; i++) {
+                const note = document.createElement('div');
+                note.className = `note note-${i + 1}`;
+                note.textContent = notes[i % notes.length];
+                container.appendChild(note);
+            }
+        }
+
+        // Start dynamic spawner
+        setInterval(spawnDynamicNote, 1500);
+
+        // Start beat pulse loop (checks current tempo)
+        requestAnimationFrame(beatPulseLoop);
+    }
+
+    function spawnDynamicNote() {
+        // Limit total notes to prevent DOM overload
+        if (document.querySelectorAll('.dynamic-note').length > 15) return;
+
+        const noteChars = ['♪', '♫', '♬', '♩'];
+        const note = document.createElement('span');
+        note.className = 'dynamic-note';
+        note.textContent = noteChars[Math.floor(Math.random() * noteChars.length)];
+
+        // Randomize physics
+        const startX = Math.random() * 95; // 0-95% width
+        const size = 1.5 + Math.random() * 2.5; // 1.5rem - 4rem
+        const duration = 10 + Math.random() * 15; // 10s - 25s
+
+        note.style.left = `${startX}%`;
+        note.style.fontSize = `${size}rem`;
+        note.style.animationDuration = `${duration}s`;
+
+        document.body.appendChild(note);
+
+        // Cleanup
+        setTimeout(() => {
+            if (note.parentNode) note.parentNode.removeChild(note);
+        }, duration * 1000);
+    }
+
+    // Add Ripple to all buttons
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn');
+        if (btn) {
+            const rect = btn.getBoundingClientRect();
+            const ripple = document.createElement('span');
+            ripple.className = 'pulse-ripple';
+
+            // Center the ripple on the click
+            const size = Math.max(rect.width, rect.height);
+            const x = e.clientX - rect.left - size / 2;
+            const y = e.clientY - rect.top - size / 2;
+
+            ripple.style.width = ripple.style.height = `${size}px`;
+            ripple.style.left = `${x}px`;
+            ripple.style.top = `${y}px`;
+
+            btn.appendChild(ripple);
+
+            // Cleanup
+            setTimeout(() => {
+                if (ripple.parentNode) ripple.parentNode.removeChild(ripple);
+            }, 600);
+        }
+    });
+
+    let lastBeatTime = 0;
+
+    function beatPulseLoop(timestamp) {
+        // Read current BPM from UI if available
+        let currentBpm = 0;
+
+        // Try getting BPM from backend analysis first
+        const tempoText = tempoValueEl ? tempoValueEl.textContent : '';
+        const match = tempoText.match(/(\d+(\.\d+)?)/);
+
+        if (match) {
+            currentBpm = parseFloat(match[1]);
+        }
+
+        // Visual Beat Logic
+        if (currentBpm > 30 && currentBpm < 300) {
+            const beatInterval = 60000 / currentBpm;
+
+            if (timestamp - lastBeatTime > beatInterval) {
+                lastBeatTime = timestamp;
+                triggerBeatVisuals();
+            }
+        }
+
+        requestAnimationFrame(beatPulseLoop);
+    }
+
+    function triggerBeatVisuals() {
+        // Pulse the Tempo Value
+        if (tempoValueEl) {
+            // Re-trigger animation by removing/adding class
+            tempoValueEl.classList.remove('beat-pop');
+            void tempoValueEl.offsetWidth; // Trigger reflow
+            tempoValueEl.classList.add('beat-pop');
+        }
+
+        // Also pulse the summary one
+        if (tempoSummaryEl) {
+            tempoSummaryEl.classList.remove('beat-pop');
+            void tempoSummaryEl.offsetWidth;
+            tempoSummaryEl.classList.add('beat-pop');
+        }
+    }
+
+    // Initialize enhancements
+    setupFloatingVisuals();
+
 });
