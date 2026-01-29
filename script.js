@@ -453,9 +453,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // to inject a token via environment or separate script.
         const SPOTIFY_ACCESS_TOKEN = window.SPOTIFY_ACCESS_TOKEN || '';
 
-        // Even if no token, we allow the embed to work.
+        // Even if no token, we allow the embed to work, but warn the user.
         if (!SPOTIFY_ACCESS_TOKEN) {
             console.warn('No Spotify access token provided. Only the embed player will work.');
+            alert("Spotify Sync Unavailable:\n\nTo sync the Graph and Tempo, you must provide a valid 'Spotify Access Token' in script.js (line ~443).\n\nWithout this token, the app cannot fetch the song's Key, so the pitch feedback will not match the song.");
             return;
         }
 
