@@ -127,24 +127,19 @@ body {
 
 /* Header */
 .app-header {
-    background-color: rgba(15, 15, 15, 0.95);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background-color: #0F0F0F;
     width: 100%;
     padding: 24px 0;
     margin-bottom: 40px;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    position: relative;
+    z-index: 10;
 }
 
 .header-content {
     display: flex;
     align-items: center;
     gap: 16px;
-    position: relative;
 }
 
 .logo-container {
@@ -154,45 +149,101 @@ body {
 }
 
 .logo {
-    height: 48px;
-    /* Slightly larger logo */
+    height: 40px;
     width: auto;
-    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.1));
 }
 
 .app-name {
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.02em;
-    background: linear-gradient(to right, #fff, #bbb);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: #FFFFFF;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    padding-bottom: 60px;
+    position: relative;
+    z-index: 1;
+}
+
+.split-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 32px;
+    align-items: start;
+}
+
+/* Card Styles */
+.card {
+    background: var(--bg-card);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    /* Subtle border */
+    border-radius: var(--border-radius-lg);
+    padding: 32px;
+    color: var(--text-primary);
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.2);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.card:hover {
+    box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+}
+
+.card-title-with-icon {
+    display: flex;
+    gap: 16px;
+}
+
+.card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #FFF;
+}
+
+.card h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #FFF;
+    margin-bottom: 4px;
+}
+
+.card-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
 }
 
 /* Audio Splitter Panel */
 .splitter-upload-area {
     border: 2px dashed rgba(255, 255, 255, 0.15);
     border-radius: var(--border-radius-lg);
-    padding: 48px 32px;
+    padding: 32px;
     text-align: center;
     transition: all var(--transition-fast);
-    background: rgba(0, 0, 0, 0.3);
-    /* Darker background like ref track */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 250px;
-    /* Match height of other card */
-    position: relative;
-    overflow: hidden;
+    background: rgba(0, 0, 0, 0.2);
 }
 
 .splitter-upload-area:hover {
-    border-color: var(--accent-primary);
-    background: rgba(0, 0, 0, 0.4);
-    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(0, 0, 0, 0.3);
 }
 
 .upload-visual.small {
