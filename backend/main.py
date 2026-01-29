@@ -272,10 +272,6 @@ async def split_audio(file: UploadFile = File(...)):
     finally:
         if os.path.exists(input_path):
             os.remove(input_path)
-        
-    finally:
-        if os.path.exists(input_path):
-            os.remove(input_path)
 
 # Mount frontend files from sa-listen-ui directory (Catch-all must be last)
 frontend_path = os.path.join(os.path.dirname(__file__), "..", "sa-listen-ui")
