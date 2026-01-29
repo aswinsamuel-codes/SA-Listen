@@ -253,6 +253,14 @@ body {
     gap: 12px;
 }
 
+.file-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
 .stems-container {
     display: flex;
     flex-direction: column;

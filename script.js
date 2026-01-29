@@ -138,6 +138,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadVocals = document.getElementById('downloadVocals');
     const downloadAccompaniment = document.getElementById('downloadAccompaniment');
 
+    const removeSplitFileBtn = document.getElementById('removeSplitFileBtn');
+
     let splitFile = null;
 
     if (splitterUpload) {
@@ -147,7 +149,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 splitterFileName.textContent = splitFile.name;
                 splitterActions.classList.remove('hidden');
                 stemsContainer.classList.add('hidden');
+                if (removeSplitFileBtn) removeSplitFileBtn.classList.remove('hidden');
             }
+        });
+    }
+
+    if (removeSplitFileBtn) {
+        removeSplitFileBtn.addEventListener('click', () => {
+            splitFile = null;
+            splitterUpload.value = '';
+            splitterFileName.textContent = 'No file selected';
+            splitterActions.classList.add('hidden');
+            stemsContainer.classList.add('hidden');
+            removeSplitFileBtn.classList.add('hidden');
         });
     }
 
