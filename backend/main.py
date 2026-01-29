@@ -18,10 +18,7 @@ os.makedirs("static", exist_ok=True)
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Mount frontend files from sa-listen-ui directory
-frontend_path = os.path.join(os.path.dirname(__file__), "..", "sa-listen-ui")
-if os.path.exists(frontend_path):
-    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+# Mount frontend files logic moved to bottom to avoid blocking API POST requests
 
 # Enable CORS for frontend communication
 app.add_middleware(
@@ -190,6 +187,9 @@ async def split_audio(file: UploadFile = File(...)):
     
     # Create unique name
     unique_name = f"{os.path.splitext(file.filename)[0]}_{os.urandom(4).hex()}"
+    input_filename = f"{unique_name}{os.path.splitext(file.filename)[1]}"
+    input_path = os.path.join("static", input_filename)
+    
     # Prepare output paths (Vocals, Drums, Bass, Piano, Other)
     output_map = {
         "vocals": f"{unique_name}_vocals.wav",
@@ -285,6 +285,11 @@ async def split_audio(file: UploadFile = File(...)):
     finally:
         if os.path.exists(input_path):
             os.remove(input_path)
+
+# Mount frontend files from sa-listen-ui directory (Catch-all must be last)
+frontend_path = os.path.join(os.path.dirname(__file__), "..", "sa-listen-ui")
+if os.path.exists(frontend_path):
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
