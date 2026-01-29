@@ -213,7 +213,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (err) {
                 console.error(err);
-                alert("Error separating audio. Ensure backend is running and supports Spleeter.");
+                // Attempt to see if we have a useful error message
+                let msg = err.message;
+                if (err.message === "Split failed") {
+                    msg = "The backend failed to split the audio. Check the terminal for '500' errors.";
+                }
+                alert(`Split Error: ${msg}\n\nPlease check the backend console for details.`);
+
                 // Reset UI
                 splitterActions.classList.remove('hidden');
                 splitterUpload.parentElement.classList.remove('hidden');
