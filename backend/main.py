@@ -5,6 +5,7 @@ import librosa
 import numpy as np
 import shutil
 import os
+import sys
 import tempfile
 
 # Ensure static directory exists for serving separated files
@@ -220,7 +221,8 @@ async def split_audio(file: UploadFile = File(...)):
         # -n: model
         # -d: device (cpu) to be safe, or 'cuda' if GPU available (auto usually works but explicit cpu is safer for general deployment)
         # --out: output directory
-        cmd = ["demucs", "-n", model, "-d", "cpu", "--out", "static/separated", input_path]
+        # Use python -m demucs to ensure we use the installed module in the current env
+        cmd = [sys.executable, "-m", "demucs", "-n", model, "-d", "cpu", "--out", "static/separated", input_path]
         
         import subprocess
         subprocess.run(cmd, check=True)
