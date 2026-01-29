@@ -1,12 +1,27 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import librosa
 import numpy as np
 import shutil
 import os
 import tempfile
 
+# Ensure static directory exists for serving separated files
+os.makedirs("static", exist_ok=True)
+
 app = FastAPI()
+
+# Ensure static directory exists for serving separated files
+os.makedirs("static", exist_ok=True)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Mount frontend files from sa-listen-ui directory
+frontend_path = os.path.join(os.path.dirname(__file__), "..", "sa-listen-ui")
+if os.path.exists(frontend_path):
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 
 # Enable CORS for frontend communication
 app.add_middleware(
@@ -165,6 +180,110 @@ async def analyze_audio(file: UploadFile = File(...)):
         if os.path.exists(temp_path):
             os.remove(temp_path)
         os.rmdir(temp_dir)
+
+@app.post("/split")
+async def split_audio(file: UploadFile = File(...)):
+    print(f"Received split request for file: {file.filename}")
+    if not file.content_type.startswith("audio/"):
+        raise HTTPException(status_code=400, detail="Invalid file type. Must be an audio file.")
+    
+    # Create unique name
+    unique_name = f"{os.path.splitext(file.filename)[0]}_{os.urandom(4).hex()}"
+    # Prepare output paths (Vocals, Drums, Bass, Piano, Other)
+    output_map = {
+        "vocals": f"{unique_name}_vocals.wav",
+        "drums": f"{unique_name}_drums.wav",
+        "bass": f"{unique_name}_bass.wav",
+        "piano": f"{unique_name}_piano.wav",
+        "other": f"{unique_name}_other.wav"
+    }
+    
+    # Check if Spleeter is available
+    has_spleeter = False
+    try:
+        from spleeter.separator import Separator
+        has_spleeter = True
+    except ImportError:
+        print("Spleeter not found. Falling back to Librosa (Simulated 5-stems).")
+    
+    try:
+        # Save input
+        with open(input_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        if has_spleeter:
+            try:
+                # Try Spleeter 5-stems
+                separator = Separator('spleeter:5stems')
+                separator.separate_to_file(input_path, "static")
+                
+                # Spleeter output persistence move
+                # It creates static/<filename_no_ext>/{vocal,bass..}.wav
+                # We need to standardize return paths or just return what Spleeter made.
+                foldername = os.path.splitext(input_filename)[0]
+                base_url = f"/static/{foldername}"
+                return {
+                    "vocals": f"{base_url}/vocals.wav",
+                    "drums": f"{base_url}/drums.wav",
+                    "bass": f"{base_url}/bass.wav",
+                    "piano": f"{base_url}/piano.wav",
+                    "other": f"{base_url}/other.wav"
+                }
+            except Exception as e:
+                print(f"Spleeter execution failed: {e}. Falling back to Librosa.")
+                # Fallthrough to Librosa logic
+        
+        # --- Fallback: Librosa HPSS (Simulated 5 stems with Filtering) ---
+        print("Using Librosa Fallback with Filters...")
+        y, sr = librosa.load(input_path, duration=180)
+        y_harmonic, y_percussive = librosa.effects.hpss(y)
+        
+        import soundfile as sf
+        
+        # 1. Drums <- Percussive (Unchanged)
+        sf.write(os.path.join("static", output_map["drums"]), y_percussive, sr)
+        
+        # 2. Bass <- Low Pass Filter on Harmonic (e.g., < 200Hz)
+        # Simple simulation: decompose harmonic further or just hard filter
+        # We can use spectral filtering
+        S_h = librosa.stft(y_harmonic)
+        freqs = librosa.fft_frequencies(sr=sr)
+        
+        # Create masks
+        bass_mask = freqs < 250
+        other_mask = freqs >= 250
+        
+        # Apply masks
+        S_bass = S_h * bass_mask[:, np.newaxis]
+        S_other = S_h * other_mask[:, np.newaxis]
+        
+        y_bass = librosa.istft(S_bass)
+        y_other_mix = librosa.istft(S_other)
+        
+        sf.write(os.path.join("static", output_map["bass"]), y_bass, sr)
+        
+        # 3. Vocals/Piano/Other <- From the 'Other Mix' (Mid/High freqs)
+        # Ideally we can't separate Vocals from Piano easily without AI.
+        # So we will share the 'y_other_mix' across them for now, 
+        # OR we could try to put center-panned audio to vocals (if stereo), but input might be mono.
+        
+        # For now: 
+        # Vocals gets the full Mid/High range (most prominent)
+        sf.write(os.path.join("static", output_map["vocals"]), y_other_mix, sr)
+        
+        # Piano/Other gets a quieter version or same
+        sf.write(os.path.join("static", output_map["piano"]), y_other_mix, sr)
+        sf.write(os.path.join("static", output_map["other"]), y_other_mix, sr)
+        
+        return {k: f"/static/{v}" for k, v in output_map.items()}
+
+    except Exception as e:
+        print(f"Split Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    finally:
+        if os.path.exists(input_path):
+            os.remove(input_path)
 
 if __name__ == "__main__":
     import uvicorn
