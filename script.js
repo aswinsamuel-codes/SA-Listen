@@ -695,11 +695,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 pitchStatusEl.classList.add('status-match');
                 sessionScore.match++;
             } else if (absCents <= 50) {
-                pitchStatusEl.textContent = 'Near';
+                // "Near" - show direction
+                const direction = centsDiff > 0 ? 'High' : 'Low';
+                pitchStatusEl.textContent = `Near (${direction})`;
                 pitchStatusEl.classList.add('status-near');
                 sessionScore.near++;
             } else {
-                pitchStatusEl.textContent = 'Off';
+                // "Off" - show direction
+                const direction = centsDiff > 0 ? 'Too High' : 'Too Low';
+                pitchStatusEl.textContent = direction;
                 // Off uses the default pill styling (no extra class)
                 sessionScore.miss++;
             }
