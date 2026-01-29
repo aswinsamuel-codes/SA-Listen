@@ -26,10 +26,11 @@ if os.path.exists(frontend_path):
 # Enable CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for local dev convenience
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],  # Explicitly allow these
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 def estimate_key(y, sr):
