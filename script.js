@@ -125,22 +125,87 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle file selection via input
     audioUpload.addEventListener('change', handleFileSelect);
 
-    // Handle Spotify track loading (metadata + embed only)
-    if (loadSpotifyBtn && spotifyTrackInput) {
-        loadSpotifyBtn.addEventListener('click', () => {
-            const raw = spotifyTrackInput.value.trim();
-            if (!raw) return;
-            const trackId = extractSpotifyTrackId(raw);
-            if (!trackId) {
-                alert('Please paste a valid Spotify track URL or ID.');
-                return;
+    // --- Audio Splitter Logic ---
+    const splitterUpload = document.getElementById('splitterUpload');
+    const splitterFileName = document.getElementById('splitterFileName');
+    const processSplitBtn = document.getElementById('processSplitBtn');
+    const splitterActions = document.getElementById('splitterActions');
+    const splitterLoading = document.getElementById('splitterLoading');
+    const stemsContainer = document.getElementById('stemsContainer');
+    const resetSplitterBtn = document.getElementById('resetSplitterBtn');
+    const stemVocals = document.getElementById('stemVocals');
+    const stemAccompaniment = document.getElementById('stemAccompaniment');
+    const downloadVocals = document.getElementById('downloadVocals');
+    const downloadAccompaniment = document.getElementById('downloadAccompaniment');
+
+    let splitFile = null;
+
+    if (splitterUpload) {
+        splitterUpload.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                splitFile = e.target.files[0];
+                splitterFileName.textContent = splitFile.name;
+                splitterActions.classList.remove('hidden');
+                stemsContainer.classList.add('hidden');
             }
-            loadSpotifyMetadataAndEmbed(trackId);
         });
     }
 
-    if (clearSpotifyBtn) {
-        clearSpotifyBtn.addEventListener('click', resetSpotifyTrack);
+    if (processSplitBtn) {
+        processSplitBtn.addEventListener('click', async () => {
+            if (!splitFile) return;
+
+            // Show loading
+            splitterLoading.classList.remove('hidden');
+            splitterActions.classList.add('hidden');
+            splitterUpload.parentElement.classList.add('hidden'); // Hide upload area temporarily
+
+            try {
+                const formData = new FormData();
+                formData.append('file', splitFile);
+
+                const response = await fetch('http://127.0.0.1:8000/split', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error("Split failed");
+
+                const data = await response.json();
+
+                // Assuming backend returns { vocals: "/static/...", accompaniment: "/static/..." }
+                // We will rely on the backend serving these files statically or via an endpoint
+                // ideally returning base64 or a temp URL. For a local app, serving from static dir is easiest.
+
+                stemVocals.src = `http://127.0.0.1:8000${data.vocals}`;
+                stemAccompaniment.src = `http://127.0.0.1:8000${data.accompaniment}`;
+
+                downloadVocals.href = `http://127.0.0.1:8000${data.vocals}`;
+                downloadAccompaniment.href = `http://127.0.0.1:8000${data.accompaniment}`;
+
+                stemsContainer.classList.remove('hidden');
+
+            } catch (err) {
+                console.error(err);
+                alert("Error separating audio. Ensure backend is running and supports Spleeter.");
+                // Reset UI
+                splitterActions.classList.remove('hidden');
+                splitterUpload.parentElement.classList.remove('hidden');
+            } finally {
+                splitterLoading.classList.add('hidden');
+            }
+        });
+    }
+
+    if (resetSplitterBtn) {
+        resetSplitterBtn.addEventListener('click', () => {
+            stemsContainer.classList.add('hidden');
+            splitterUpload.parentElement.classList.remove('hidden');
+            splitterFileName.textContent = 'No file selected';
+            splitterActions.classList.add('hidden');
+            splitterUpload.value = '';
+            splitFile = null;
+        });
     }
 
     if (removeReferenceBtn) {

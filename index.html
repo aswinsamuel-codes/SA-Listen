@@ -37,32 +37,58 @@
 
     <main class="container main-content">
         <div class="split-layout">
-            <!-- LEFT PANEL: Spotify playback and metadata (no analysis) -->
-            <section class="card card-spotify" aria-label="Spotify playback panel">
+            <!-- LEFT PANEL: Audio Splitter -->
+            <section class="card card-splitter" id="splitterCard">
                 <div class="card-header">
                     <div class="card-title-with-icon">
-                        <span class="card-icon" aria-hidden="true">♬</span>
+                        <span class="card-icon" aria-hidden="true">✂️</span>
                         <div>
-                            <h2>Spotify Player</h2>
-                            <p class="card-subtitle">Playback and song details only.</p>
+                            <h2>Audio Splitter</h2>
+                            <p class="card-subtitle">Separate vocals and music from any track.</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="spotify-input">
-                    <input type="text" id="spotifyTrackInput" class="spotify-track-input"
-                        placeholder="Paste a Spotify track URL or ID" aria-label="Spotify track URL or ID">
-                    <button type="button" class="btn btn-secondary" id="loadSpotifyBtn">Load</button>
-                    <button type="button" class="btn btn-ghost btn-remove" id="clearSpotifyBtn"
-                        aria-label="Remove track" title="Remove track" style="display: none;">✕</button>
+                <div class="splitter-upload-area" id="splitterUploadArea">
+                    <input type="file" id="splitterUpload" accept="audio/*" hidden>
+                    <div class="upload-visual small">
+                        <p class="upload-main">Drop audio to split</p>
+                        <button class="btn btn-primary" type="button"
+                            onclick="document.getElementById('splitterUpload').click()">
+                            Select File
+                        </button>
+                    </div>
+                    <p id="splitterFileName" class="file-name mt-2">No file selected</p>
                 </div>
 
-                <div class="spotify-embed-wrapper">
-                    <!-- Spotify embed used ONLY for playback UI; audio is NOT analyzed. -->
-                    <iframe id="spotifyPlayer" class="spotify-embed" style="border-radius:12px" src="" width="100%"
-                        height="152" frameborder="0"
-                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                        loading="lazy"></iframe>
+                <div class="splitter-actions hidden" id="splitterActions">
+                    <button id="processSplitBtn" class="btn btn-glow btn-primary full-width">
+                        Split Audio (Vocals / Music)
+                    </button>
+                </div>
+
+                <!-- Results Area -->
+                <div class="stems-container hidden" id="stemsContainer">
+                    <div class="stem-track">
+                        <span class="stem-label">Vocals</span>
+                        <audio id="stemVocals" controls class="stem-audio"></audio>
+                        <a id="downloadVocals" href="#" download class="btn btn-ghost btn-sm"
+                            title="Download Vocals">⬇</a>
+                    </div>
+                    <div class="stem-track">
+                        <span class="stem-label">Music</span>
+                        <audio id="stemAccompaniment" controls class="stem-audio"></audio>
+                        <a id="downloadAccompaniment" href="#" download class="btn btn-ghost btn-sm"
+                            title="Download Music">⬇</a>
+                    </div>
+                    <div class="splitter-reset">
+                        <button id="resetSplitterBtn" class="btn btn-ghost btn-danger">Start Over</button>
+                    </div>
+                </div>
+
+                <div class="loading-overlay hidden" id="splitterLoading">
+                    <div class="spinner"></div>
+                    <p>Separating audio... this may take a minute.</p>
                 </div>
             </section>
 
