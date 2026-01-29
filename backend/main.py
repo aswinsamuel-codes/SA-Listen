@@ -203,89 +203,75 @@ async def split_audio(file: UploadFile = File(...)):
         "piano": f"{unique_name}_piano.wav",
         "other": f"{unique_name}_other.wav"
     }
-    
-    # Check if Spleeter is available
-    has_spleeter = False
-    try:
-        from spleeter.separator import Separator
-        has_spleeter = True
-    except ImportError:
-        print("Spleeter not found. Falling back to Librosa (Simulated 5-stems).")
-    
+
     try:
         # Save input
         with open(input_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+
+        # --- Use HTDemucs (Demucs) for High Quality Separation ---
+        # We use 'htdemucs_6s' because standard htdemucs is only 4 stems (no piano)
+        # htdemucs_6s stems: bass, drums, guitar, other, piano, vocals
+        model = "htdemucs_6s"
+        
+        print(f"Running Demucs ({model}) on {input_path}...")
+        
+        # Demucs CLI command
+        # -n: model
+        # -d: device (cpu) to be safe, or 'cuda' if GPU available (auto usually works but explicit cpu is safer for general deployment)
+        # --out: output directory
+        cmd = ["demucs", "-n", model, "-d", "cpu", "--out", "static/separated", input_path]
+        
+        import subprocess
+        subprocess.run(cmd, check=True)
+        
+        # Demucs output structure: static/separated/<model>/<input_filename_no_ext>/<stem>.wav
+        # Note: input_filename_no_ext is how Demucs names the folder.
+        input_name_no_ext = os.path.splitext(input_filename)[0]
+        demucs_output_dir = os.path.join("static", "separated", model, input_name_no_ext)
+        
+        if not os.path.exists(demucs_output_dir):
+            raise FileNotFoundError(f"Demucs output folder not found at: {demucs_output_dir}")
+
+        # Map Demucs output filenames to our expected frontend filenames
+        # Demucs files are usually: vocals.wav, drums.wav, bass.wav, other.wav, piano.wav, guitar.wav
+        
+        # Helper to move and rename
+        def move_stem(demucs_name, target_key):
+            src = os.path.join(demucs_output_dir, f"{demucs_name}.wav")
+            target = os.path.join("static", output_map[target_key])
             
-        if has_spleeter:
-            try:
-                # Try Spleeter 5-stems
-                separator = Separator('spleeter:5stems')
-                separator.separate_to_file(input_path, "static")
-                
-                # Spleeter output persistence move
-                # It creates static/<filename_no_ext>/{vocal,bass..}.wav
-                # We need to standardize return paths or just return what Spleeter made.
-                foldername = os.path.splitext(input_filename)[0]
-                base_url = f"/static/{foldername}"
-                return {
-                    "vocals": f"{base_url}/vocals.wav",
-                    "drums": f"{base_url}/drums.wav",
-                    "bass": f"{base_url}/bass.wav",
-                    "piano": f"{base_url}/piano.wav",
-                    "other": f"{base_url}/other.wav"
-                }
-            except Exception as e:
-                print(f"Spleeter execution failed: {e}. Falling back to Librosa.")
-                # Fallthrough to Librosa logic
+            if os.path.exists(src):
+                shutil.move(src, target)
+            else:
+                print(f"Warning: Stem {demucs_name} not found. Creating silent/empty file for {target_key}.")
+                # Fallback: Copy 'other' or create silent file if needed.
+                # For now, let's just error or copy the original 'other' if we are desperate.
+                # If piano is missing (e.g. wrong model), allow Copying 'other' to 'piano'
+                if target_key == 'piano' and os.path.exists(os.path.join(demucs_output_dir, "other.wav")):
+                     shutil.copy(os.path.join(demucs_output_dir, "other.wav"), target)
+
+        move_stem("vocals", "vocals")
+        move_stem("drums", "drums")
+        move_stem("bass", "bass")
+        move_stem("piano", "piano")
+        move_stem("other", "other")
         
-        # --- Fallback: Librosa HPSS (Simulated 5 stems with Filtering) ---
-        print("Using Librosa Fallback with Filters...")
-        y, sr = librosa.load(input_path, duration=180)
-        y_harmonic, y_percussive = librosa.effects.hpss(y)
-        
-        import soundfile as sf
-        
-        # 1. Drums <- Percussive (Unchanged)
-        sf.write(os.path.join("static", output_map["drums"]), y_percussive, sr)
-        
-        # 2. Bass <- Low Pass Filter on Harmonic (e.g., < 200Hz)
-        # Simple simulation: decompose harmonic further or just hard filter
-        # We can use spectral filtering
-        S_h = librosa.stft(y_harmonic)
-        freqs = librosa.fft_frequencies(sr=sr)
-        
-        # Create masks
-        bass_mask = freqs < 250
-        other_mask = freqs >= 250
-        
-        # Apply masks
-        S_bass = S_h * bass_mask[:, np.newaxis]
-        S_other = S_h * other_mask[:, np.newaxis]
-        
-        y_bass = librosa.istft(S_bass)
-        y_other_mix = librosa.istft(S_other)
-        
-        sf.write(os.path.join("static", output_map["bass"]), y_bass, sr)
-        
-        # 3. Vocals/Piano/Other <- From the 'Other Mix' (Mid/High freqs)
-        # Ideally we can't separate Vocals from Piano easily without AI.
-        # So we will share the 'y_other_mix' across them for now, 
-        # OR we could try to put center-panned audio to vocals (if stereo), but input might be mono.
-        
-        # For now: 
-        # Vocals gets the full Mid/High range (most prominent)
-        sf.write(os.path.join("static", output_map["vocals"]), y_other_mix, sr)
-        
-        # Piano/Other gets a quieter version or same
-        sf.write(os.path.join("static", output_map["piano"]), y_other_mix, sr)
-        sf.write(os.path.join("static", output_map["other"]), y_other_mix, sr)
-        
+        # Cleanup split folder
+        shutil.rmtree(os.path.join("static", "separated"), ignore_errors=True) # clean up the huge separated folder
+
         return {k: f"/static/{v}" for k, v in output_map.items()}
 
+    except subprocess.CalledProcessError as e:
+        print(f"Demucs CLI failed: {e}")
+        raise HTTPException(status_code=500, detail="Audio separation failed during processing.")
     except Exception as e:
         print(f"Split Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+        
+    finally:
+        if os.path.exists(input_path):
+            os.remove(input_path)
         
     finally:
         if os.path.exists(input_path):
