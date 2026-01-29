@@ -1132,4 +1132,98 @@ document.addEventListener('DOMContentLoaded', () => {
         if (startSingingBtn) startSingingBtn.disabled = !canSing;
         if (stopSingingBtn) stopSingingBtn.disabled = !canSing;
     }
+
+    // --- NEON WAVE VISUALIZER ---
+    const bgCanvas = document.getElementById('bgVisualizer');
+    const bgCtx = bgCanvas ? bgCanvas.getContext('2d') : null;
+    let visualizerRaf = null;
+
+    function resizeCanvas() {
+        if (!bgCanvas) return;
+        bgCanvas.width = window.innerWidth;
+        bgCanvas.height = window.innerHeight;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function drawNeonWave() {
+        if (!bgCtx || !bgCanvas) return;
+
+        // Clear with transparent bg
+        bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+        // We'll use frequency data from referenceAnalyser if playing
+        let dataArray;
+        if (referenceAnalyser && !audioPlayer.paused) {
+            const bufferLength = referenceAnalyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+            referenceAnalyser.getByteFrequencyData(dataArray);
+        } else {
+            // Idle animation data (sine wave simulation)
+            const t = Date.now() / 1000;
+            dataArray = new Uint8Array(128).map((_, i) => {
+                return 50 + 20 * Math.sin(t * 2 + i * 0.1);
+            });
+        }
+
+        const width = bgCanvas.width;
+        const height = bgCanvas.height;
+        const barWidth = (width / dataArray.length) * 2.5;
+        let x = 0;
+
+        // Draw multiple layered waves
+        bgCtx.lineWidth = 2;
+        bgCtx.lineCap = 'round';
+
+        // Wave 1: Cyan
+        bgCtx.beginPath();
+        bgCtx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+        drawWavePath(dataArray, 0, height * 0.8, 1.2, 0);
+        bgCtx.stroke();
+
+        // Wave 2: Magenta
+        bgCtx.beginPath();
+        bgCtx.strokeStyle = 'rgba(255, 0, 255, 0.4)';
+        drawWavePath(dataArray, 50, height * 0.85, 1.0, 500);
+        bgCtx.stroke();
+
+        // Wave 3: Lime
+        bgCtx.beginPath();
+        bgCtx.strokeStyle = 'rgba(50, 255, 50, 0.3)';
+        drawWavePath(dataArray, 100, height * 0.9, 0.8, 1000);
+        bgCtx.stroke();
+
+        visualizerRaf = requestAnimationFrame(drawNeonWave);
+    }
+
+    function drawWavePath(data, offsetIndex, basePath, scale, timeOffset) {
+        // Smooth curve through data points
+        // Simplified for performance: just lines
+        let x = 0;
+        const sliceWidth = bgCanvas.width * 1.0 / (data.length / 4); // Draw only low/mid freqs
+
+        const t = Date.now() / 2000;
+
+        bgCtx.moveTo(0, basePath);
+
+        for (let i = 0; i < data.length / 4; i++) {
+            const v = data[i] / 255.0; // 0.0 to 1.0
+
+            // Add some "flow" movement even when static
+            const flow = Math.sin(i * 0.1 + t + timeOffset) * 20;
+
+            const y = basePath - (v * 150 * scale) + flow;
+
+            if (i === 0) bgCtx.moveTo(x, y);
+            else bgCtx.lineTo(x, y);
+
+            x += sliceWidth;
+        }
+        bgCtx.lineTo(bgCanvas.width, basePath);
+    }
+
+    // Start visualizer
+    drawNeonWave();
+
 });
