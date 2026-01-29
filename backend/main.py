@@ -181,7 +181,7 @@ async def analyze_audio(file: UploadFile = File(...)):
             os.remove(temp_path)
         os.rmdir(temp_dir)
 
-@app.post("/split")
+@app.post("/split", status_code=200)
 async def split_audio(file: UploadFile = File(...)):
     print(f"Received split request for file: {file.filename}")
     if not file.content_type.startswith("audio/"):
