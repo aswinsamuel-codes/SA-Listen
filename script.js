@@ -1173,25 +1173,26 @@ document.addEventListener('DOMContentLoaded', () => {
         let x = 0;
 
         // Draw multiple layered waves
-        bgCtx.lineWidth = 2;
+        // Draw multiple layered waves - DARKER and more spread out
+        bgCtx.lineWidth = 1; /* Thinner lines */
         bgCtx.lineCap = 'round';
 
-        // Wave 1: Cyan
+        // Wave 1: Cyan (Very subtle)
         bgCtx.beginPath();
-        bgCtx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
-        drawWavePath(dataArray, 0, height * 0.8, 1.2, 0);
+        bgCtx.strokeStyle = 'rgba(0, 255, 255, 0.15)';
+        drawWavePath(dataArray, 0, height * 0.5, 1.2, 0); /* Center height */
         bgCtx.stroke();
 
         // Wave 2: Magenta
         bgCtx.beginPath();
-        bgCtx.strokeStyle = 'rgba(255, 0, 255, 0.4)';
-        drawWavePath(dataArray, 50, height * 0.85, 1.0, 500);
+        bgCtx.strokeStyle = 'rgba(255, 0, 255, 0.1)';
+        drawWavePath(dataArray, 50, height * 0.55, 1.0, 500);
         bgCtx.stroke();
 
         // Wave 3: Lime
         bgCtx.beginPath();
-        bgCtx.strokeStyle = 'rgba(50, 255, 50, 0.3)';
-        drawWavePath(dataArray, 100, height * 0.9, 0.8, 1000);
+        bgCtx.strokeStyle = 'rgba(50, 255, 50, 0.1)';
+        drawWavePath(dataArray, 100, height * 0.45, 0.8, 1000);
         bgCtx.stroke();
 
         visualizerRaf = requestAnimationFrame(drawNeonWave);
@@ -1210,10 +1211,9 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < data.length / 4; i++) {
             const v = data[i] / 255.0; // 0.0 to 1.0
 
-            // Add some "flow" movement even when static
-            const flow = Math.sin(i * 0.1 + t + timeOffset) * 20;
-
-            const y = basePath - (v * 150 * scale) + flow;
+            // Center the wave around basePath
+            // V is 0..1, so (v * 150) moves it up/down
+            const y = basePath + (Math.sin(i * 0.1 + t + timeOffset) * 20) - (v * 100 * scale);
 
             if (i === 0) bgCtx.moveTo(x, y);
             else bgCtx.lineTo(x, y);
@@ -1225,5 +1225,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Start visualizer
     drawNeonWave();
+
+    // Floating Particles
+    function createParticles() {
+        const particleContainer = document.body;
+        for (let i = 0; i < 30; i++) {
+            const p = document.createElement('div');
+            p.classList.add('floating-particle');
+            const size = Math.random() * 80 + 20;
+            p.style.width = `${size}px`;
+            p.style.height = `${size}px`;
+            p.style.left = `${Math.random() * 100}vw`;
+            p.style.top = `${Math.random() * 100}vh`;
+            p.style.animationDuration = `${Math.random() * 10 + 10}s`;
+            p.style.animationDelay = `-${Math.random() * 20}s`;
+            p.style.opacity = Math.random() * 0.1 + 0.02; // Very faint
+            particleContainer.appendChild(p);
+        }
+    }
+    createParticles();
 
 });
