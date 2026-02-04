@@ -866,7 +866,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (stopSingingBtn) {
         stopSingingBtn.addEventListener('click', () => {
-            if (!isListening) return;
+            // Force stop regardless of state flag, just in case
             stopMicrophone();
         });
     }
@@ -1175,13 +1175,19 @@ document.addEventListener('DOMContentLoaded', () => {
         let dataArray;
         if (referenceAnalyser && !audioPlayer.paused) {
             const bufferLength = referenceAnalyser.frequencyBinCount;
+            // Use a smaller buffer for visualizer to match the idle array size logic if needed, 
+            // but analyser usually returns 1024 or 2048. We'll stick to what we have.
             dataArray = new Uint8Array(bufferLength);
             referenceAnalyser.getByteFrequencyData(dataArray);
         } else {
-            // Idle animation data (sine wave simulation)
-            const t = Date.now() / 1000;
-            dataArray = new Uint8Array(128).map((_, i) => {
-                return 50 + 20 * Math.sin(t * 2 + i * 0.1);
+            // Idle animation data (slow, gentle sine wave simulation)
+            // Create a fake frequency array
+            const t = Date.now() / 3000; // Slower time base
+            dataArray = new Uint8Array(256).map((_, i) => {
+                // Generate a gentle rolling wave appearance
+                // Base value + sine wave modulation
+                const val = 20 + 15 * Math.sin(t * 1.5 + i * 0.05);
+                return Math.max(0, val);
             });
         }
 
@@ -1227,11 +1233,23 @@ document.addEventListener('DOMContentLoaded', () => {
         bgCtx.moveTo(0, basePath);
 
         for (let i = 0; i < data.length / 4; i++) {
-            const v = data[i] / 255.0; // 0.0 to 1.0
+            // V is 0..1
+            const v = data[i] / 255.0;
 
-            // Center the wave around basePath
-            // V is 0..1, so (v * 150) moves it up/down
-            const y = basePath + (Math.sin(i * 0.1 + t + timeOffset) * 20) - (v * 100 * scale);
+            // Modulation factor: 
+            // If idle, data[i] is small (~20-40), so v is ~0.1. We want gentle waves.
+            // If active, v can be up to 1.0. We want big reactions.
+
+            // We use 'v' to displace the wave from the center.
+            // We also add a traveling sine wave 'Math.sin(i * 0.1 + t + timeOffset)' for movement.
+
+            // Dynamic scale based on magnitude to keep idle gentle and active loud
+            const magnitude = (data[i] > 50) ? 150 : 50;
+
+            const displacement = v * magnitude * scale;
+            const waveMotion = Math.sin(i * 0.05 + t + timeOffset) * 20;
+
+            const y = basePath + waveMotion - displacement;
 
             if (i === 0) bgCtx.moveTo(x, y);
             else bgCtx.lineTo(x, y);
