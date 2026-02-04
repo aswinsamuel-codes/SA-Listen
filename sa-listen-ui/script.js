@@ -1312,10 +1312,15 @@ document.addEventListener('DOMContentLoaded', () => {
     createParticles();
 
     // --- Interactive Background Elements: Floating Notes on Click ---
+    // --- Interactive Background Elements: Floating Notes on Click ---
     document.addEventListener('click', (e) => {
-        // Only spawn if clicking the background (not interactive elements)
         const target = e.target;
-        if (target.closest('.card') || target.closest('button') || target.tagName === 'INPUT' || target.closest('.how-it-works')) return;
+        // stricter check: only ignore if inside a card or button/input
+        const insideCard = target.closest('.card');
+        const insideInteractive = target.closest('button') || target.tagName === 'INPUT' || target.tagName === 'A';
+
+        // We allow clicking on .how-it-works now since it is transparent
+        if (insideCard || insideInteractive) return;
 
         spawnMusicalNote(e.clientX, e.clientY);
     });
@@ -1329,13 +1334,20 @@ document.addEventListener('DOMContentLoaded', () => {
         el.style.position = 'fixed';
         el.style.left = x + 'px';
         el.style.top = y + 'px';
-        // Dark note color for cream background
-        el.style.color = `rgba(0, 0, 0, ${0.4 + Math.random() * 0.4})`;
+
+        // Premium Brown Colors (SaddleBrown, Sienna, Bronze)
+        // R: 100-160, G: 40-80, B: 20-50
+        const r = Math.floor(100 + Math.random() * 60);
+        const g = Math.floor(40 + Math.random() * 40);
+        const b = Math.floor(20 + Math.random() * 30);
+        el.style.color = `rgba(${r}, ${g}, ${b}, ${0.6 + Math.random() * 0.4})`;
+
         el.style.fontSize = `${1.5 + Math.random() * 2}rem`;
         el.style.fontWeight = 'bold';
         el.style.pointerEvents = 'none';
-        el.style.zIndex = '50'; /* Above everything temporarily */
+        el.style.zIndex = '9999'; /* Ensure it is on top of everything */
         el.style.userSelect = 'none';
+        el.style.textShadow = '0 2px 4px rgba(255,255,255,0.2)'; /* Subtle light shadow for depth */
 
         // Initial state
         el.style.transform = `translate(-50%, -50%) scale(0.5) rotate(${Math.random() * 60 - 30}deg)`;
