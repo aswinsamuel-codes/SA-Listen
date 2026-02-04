@@ -296,6 +296,36 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadArea.addEventListener('dragleave', unhighlight);
     uploadArea.addEventListener('drop', handleDrop);
 
+    // Demo Track Loader
+    const loadDemoBtn = document.getElementById('loadDemoBtn');
+    if (loadDemoBtn) {
+        loadDemoBtn.addEventListener('click', async () => {
+            // Show simple loading state
+            loadDemoBtn.textContent = 'Loading...';
+            loadDemoBtn.disabled = true;
+
+            try {
+                // Fetch valid mp3 from test folder
+                const response = await fetch('test/sacred-echo-by-makrifat-islam-388776.mp3');
+                if (!response.ok) throw new Error("Demo file not found");
+
+                const blob = await response.blob();
+                const file = new File([blob], "Demo: Sacred Echo.mp3", { type: "audio/mp3" });
+
+                processFile(file);
+
+                // Hide demo button area after loading
+                loadDemoBtn.parentElement.style.display = 'none';
+
+            } catch (err) {
+                console.error("Demo load failed:", err);
+                alert("Could not load demo track. Please upload a file manually.");
+                loadDemoBtn.textContent = '✨ Try a Demo Track';
+                loadDemoBtn.disabled = false;
+            }
+        });
+    }
+
     function highlight() {
         uploadArea.style.borderColor = 'rgba(255,255,255,0.8)';
     }

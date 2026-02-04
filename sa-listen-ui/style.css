@@ -1016,3 +1016,81 @@ body {
     position: relative;
     z-index: 5;
 }
+
+/* How It Works Section */
+.how-it-works {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    margin: 16px 0 40px 0;
+    /* Reduced top margin, kept bottom */
+    padding: 0;
+    background: transparent;
+    border: none;
+    position: relative;
+    z-index: 5;
+}
+
+.step-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+    min-width: 120px;
+}
+
+.step-icon {
+    width: 56px;
+    height: 56px;
+    background: var(--bg-card);
+    /* Dark circle */
+    color: var(--text-primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+}
+
+.step-item:hover .step-icon {
+    transform: translateY(-4px);
+    color: var(--accent-primary);
+}
+
+.step-text h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-on-light);
+}
+
+.step-text p {
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+    line-height: 1.3;
+    max-width: 160px;
+}
+
+.step-separator {
+    height: 1px;
+    width: 60px;
+    background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.1), transparent);
+    border-radius: 0;
+    margin-top: -24px;
+    /* Align with center of icons approx */
+}
+
+@media (max-width: 768px) {
+    .how-it-works {
+        flex-direction: column;
+        gap: 32px;
+    }
+
+    .step-separator {
+        display: none;
+    }
+}

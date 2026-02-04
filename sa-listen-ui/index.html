@@ -160,6 +160,14 @@
                     </div>
                 </div>
 
+                <!-- Demo Option -->
+                <div class="demo-area" style="text-align: center; margin-top: 16px;">
+                    <button id="loadDemoBtn" class="btn btn-ghost btn-sm"
+                        style="font-size: 0.85rem; color: var(--accent-primary);">
+                        ✨ Try a Demo Track
+                    </button>
+                </div>
+
                 <div class="audio-preview hidden" id="audioPreviewContainer">
                     <audio id="audioPlayer" controls class="custom-audio"></audio>
                     <button id="removeReferenceBtn" class="btn btn-ghost btn-remove" aria-label="Remove file"
@@ -183,6 +191,34 @@
                 </div>
             </section>
         </div>
+        </div>
+
+        <!-- HOW IT WORKS: Simple instructional steps -->
+        <section class="how-it-works" aria-label="How it works">
+            <div class="step-item">
+                <div class="step-icon">📤</div>
+                <div class="step-text">
+                    <h3>1. Upload</h3>
+                    <p>Drop a reference track to analyze/split</p>
+                </div>
+            </div>
+            <div class="step-separator"></div>
+            <div class="step-item">
+                <div class="step-icon">🤖</div>
+                <div class="step-text">
+                    <h3>2. AI Process</h3>
+                    <p>We extract tempo, key, and vocals</p>
+                </div>
+            </div>
+            <div class="step-separator"></div>
+            <div class="step-item">
+                <div class="step-icon">🎤</div>
+                <div class="step-text">
+                    <h3>3. Sing</h3>
+                    <p>Match the pitch for real-time feedback</p>
+                </div>
+            </div>
+        </section>
 
         <!-- BOTTOM ANALYSIS: pitch comparison graph and live controls -->
         <section class="card card-pitch" id="pitchCard" aria-label="Live pitch feedback panel">
