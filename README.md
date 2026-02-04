@@ -1,4 +1,4 @@
-# SA Listen (Semantic Audio Listen)
+# SA Listen 
 
 SA Listen is an AI-powered real-time vocal analysis tool designed to help singers improve their pitch accuracy. It provides immediate visual feedback by comparing a singer's live input against a reference track, featuring high-quality audio separation and dynamic visualization.
 
@@ -11,7 +11,7 @@ SA Listen is an AI-powered real-time vocal analysis tool designed to help singer
   - Live frequency graph (Reference vs. User)
   - Neon wave ambient visualizer
   - Pitch accuracy scoring (Match, Near, Off)
-- **Spotify Integration**: Syncs beat/bar information for metadata (tempo/key) analysis.
+
 
 ## Architecture
 
@@ -75,15 +75,8 @@ See the [LICENSE](LICENSE) file for the full text.
 - `FastAPI` (Backend framework)
 - `music-tempo` (Frontend tempo estimation)
 
-## Journal Notes
 
-**Research Motivation**: This tool addresses the lack of accessible, real-time visual feedback tools for vocal pedagogy that utilize modern AI source separation. Traditional tools often require pre-processed MIDI files; SA Listen works with raw audio.
-
-**System Novelty**: By combining browser-based zero-latency pitch detection with server-side high-fidelity model processing, SA Listen offers a "best of both worlds" approach—immediate feedback for the user, with deep analysis available on demand.
-
-**Ethical & Legal Audio Handling**: The application processes audio locally (browser) or temporarily (server RAM/temp) for analysis. Uploaded files are solely used for user-session analysis and are not permanently stored or used to train models, respecting user privacy and copyright.
-
-## Crazy Ideas Welcome 🎶
+## Crazy Ideas Welcome 
 
 We welcome experimental ideas like:
 - Pitch emotion detection
@@ -95,3 +88,7 @@ We welcome experimental ideas like:
 Final decisions on architecture and roadmap are maintained by the core maintainers to ensure research integrity and product vision.
 
 If it sounds crazy — we want it.
+
+
+
+
