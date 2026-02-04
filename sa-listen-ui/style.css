@@ -123,7 +123,8 @@ body {
 .splitter-upload-area {
     border: 2px dashed rgba(255, 255, 255, 0.15);
     border-radius: var(--border-radius-lg);
-    padding: 32px;
+    padding: 48px;
+    /* Increased from 32px */
     text-align: center;
     transition: all var(--transition-fast);
     background: rgba(0, 0, 0, 0.2);
@@ -370,29 +371,53 @@ body {
 .stems-container {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    margin-top: 20px;
+    gap: 24px;
+    /* Increased gap from 16px */
+    margin-top: 32px;
+    /* Increased margin from 20px */
 }
 
 .stem-track {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 12px;
-    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 20px;
+    /* Increased padding from 12px */
+    border-radius: 12px;
+    /* Increased radius */
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 20px;
+    /* Increased gap */
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.stem-track:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateX(4px);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 .stem-label {
-    min-width: 60px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text-secondary);
+    min-width: 80px;
+    /* Increased width */
+    font-size: 1rem;
+    /* Increased size */
+    font-weight: 600;
+    /* Bolder */
+    color: var(--text-primary);
+    /* Brighter text */
+    text-transform: capitalize;
+    letter-spacing: 0.02em;
 }
 
 .stem-audio {
     flex: 1;
-    height: 32px;
+    height: 48px;
+    /* Taller audio player */
+    filter: invert(0.9) hue-rotate(180deg);
+    /* Custom style tweaks for player */
+    border-radius: 24px;
+    opacity: 0.9;
 }
 
 .loading-overlay {
