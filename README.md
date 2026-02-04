@@ -67,6 +67,7 @@ See the [LICENSE](LICENSE) file for the full text.
 
 **Core Developer & Architect**:
 - **Aswin Samuel A.**
+- **Sukin S**
 
 **Libraries Used**:
 - `librosa` (Audio analysis)

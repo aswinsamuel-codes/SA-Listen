@@ -6,6 +6,10 @@
 - Content: System Architecture, Full-Stack Development, AI Integration
 - Role: Lead Developer & Researcher
 
+**Sukin S**
+- Content: Full-Stack Development
+- Role: Core Developer
+
 ## Acknowledgements
 
 This project builds upon the open-source community's work, specifically:
