@@ -1,116 +1,83 @@
-# SA Listen UI
+# SA Listen (Semantic Audio Listen)
 
-A cozy, premium-feel web interface for **SA Listen**, an AI-powered vocal analysis app. The UI lets you upload a reference track, visualize its pitch, sing along live via your microphone, and compare your pitch against the target in real time.
+SA Listen is an AI-powered real-time vocal analysis tool designed to help singers improve their pitch accuracy. It provides immediate visual feedback by comparing a singer's live input against a reference track, featuring high-quality audio separation and dynamic visualization.
 
-## Features
+## Key Features
 
-- **Reference Track Upload**
-	- Drag-and-drop or browse to upload an audio file.
-	- In-browser audio preview using the built-in player.
+- **Real-Time Pitch Detection**: Uses autocorrelation-based pitch detection to track vocal input with low latency.
+- **Reference Comparison**: Compares live singing against a reference track's key and melody.
+- **AI Audio Splitting**: Integrates `demucs` (Hybrid Transformer Demucs) to separate vocals, drums, bass, and piano from any song.
+- **Visual Feedback**:
+  - Live frequency graph (Reference vs. User)
+  - Neon wave ambient visualizer
+  - Pitch accuracy scoring (Match, Near, Off)
+- **Spotify Integration**: Syncs beat/bar information for metadata (tempo/key) analysis.
 
-- **Live Pitch Feedback Panel**
-	- Real-time microphone pitch detection using the Web Audio API.
-	- Displays:
-		- **Target frequency (Hz)** (reference pitch)
-		- **Your frequency (Hz)** (live mic)
-		- **Status**: `Waiting`, `Match`, `Near`, `Off` based on cents difference.
+## Architecture
 
-- **Live Frequency Comparison Graph**
-	- HTML canvas graph with time on the X-axis and frequency (50–1000 Hz) on the Y-axis.
-	- **Blue line**: reference track fundamental frequency.
-	- **Red line**: your live vocal pitch.
-	- Sliding window history that updates at ~30 FPS.
+The system uses a hybrid architecture:
+- **Frontend**: A vanilla JavaScript/HTML5 application using the Web Audio API for real-time microphone processing and canvas-based visualization.
+- **Backend**: A FastAPI (Python) server that handles:
+  - Heavy AI tasks like source separation (`demucs`)
+  - Audio key/chord estimation (`librosa`)
+  - File management
 
-- **Live Singing Session Card**
-	- Locked until a reference track is uploaded.
-	- "Start Singing" toggles live microphone analysis on/off.
-	- Automatically lowers reference track volume while listening to reduce bleed into the mic.
+## Installation
 
-- **Design**
-	- Cream background (`#FAF7F2`), black header/cards (`#0F0F0F`).
-	- White primary text, soft gray secondary text, soft blue accent (`#3B82F6`).
-	- Mobile-first, single-column layout with touch-friendly controls.
+### Prerequisites
+- Python 3.10+
+- Node.js (optional, for frontend dev tools)
+- FFmpeg (required for audio processing)
 
-## Project Structure
+### Setup
 
-- [index.html](index.html)
-- [style.css](style.css)
-- [script.js](script.js)
-- [assets/](assets)
-	- Logo image used in the header.
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/aswinsamuel-codes/SA-Listen.git
+   cd SA-Listen
+   ```
 
-## Getting Started
+2. **Backend Setup**:
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   ```
+   *Note: First run of the splitter will download the ~2GB Demucs AI model.*
 
-1. **Clone the repository**
+3. **Run the Application**:
+   ```bash
+   # From the project root
+   python backend/main.py
+   ```
+   Access the app at `http://127.0.0.1:8000`.
 
-	 ```bash
-	 git clone https://github.com/aswinsamuel-codes/SA-Listen.git
-	 cd SA-Listen/sa-listen-ui
-	 ```
+## License
 
-2. **Serve over HTTP(S)**
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
-	 Because the app uses `getUserMedia` for microphone access, most browsers require HTTPS or `http://localhost`.
+**Summary of Terms:**
+- You may copy, distribute, and modify the software.
+- You must include the license and copyright notice.
+- If you modify it, you must state changes.
+- **Network Use:** If you run this software over a network (e.g., as a web service), you **must** make the source code available to users of that service.
 
-	 You can use a simple static server, for example:
+See the [LICENSE](LICENSE) file for the full text.
 
-	 ```bash
-	 # Python 3
-	 python -m http.server 8000
-	 # or
-	 # Node (http-server must be installed globally)
-	 npx http-server -p 8000
-	 ```
+## Credits
 
-	 Then open:
+**Core Developer & Architect**:
+- **Aswin Samuel A.**
 
-	 ```
-	 http://localhost:8000/index.html
-	 ```
+**Libraries Used**:
+- `librosa` (Audio analysis)
+- `demucs` (Source separation)
+- `FastAPI` (Backend framework)
+- `music-tempo` (Frontend tempo estimation)
 
-3. **Grant microphone permission**
+## Journal Notes
 
-	 - Upload a reference track.
-	 - Click **Start Singing**.
-	 - Your browser will prompt for microphone access; allow it.
+**Research Motivation**: This tool addresses the lack of accessible, real-time visual feedback tools for vocal pedagogy that utilize modern AI source separation. Traditional tools often require pre-processed MIDI files; SA Listen works with raw audio.
 
-## How It Works (High Level)
+**System Novelty**: By combining browser-based zero-latency pitch detection with server-side high-fidelity model processing, SA Listen offers a "best of both worlds" approach—immediate feedback for the user, with deep analysis available on demand.
 
-- **Reference Track Path**
-	- The `<audio>` element is connected to an `AnalyserNode` via `createMediaElementSource`. Time-domain data is analyzed with an autocorrelation-based pitch detector to estimate the reference fundamental frequency.
-
-- **Microphone Path**
-	- `navigator.mediaDevices.getUserMedia` provides a mic stream.
-	- The stream is connected only to an `AnalyserNode` (not to `destination`), so mic audio is never played back.
-	- The same time-domain autocorrelation pitch detector is used.
-
-- **Pitch Comparison & Status**
-	- The detected microphone pitch is compared in **cents** to the target frequency (currently a fixed Concert A = 440 Hz):
-		- `MATCH` if within ±20 cents
-		- `NEAR` if within ±50 cents
-		- `OFF` otherwise
-
-- **Graph Rendering**
-	- The app keeps sliding-window arrays of recent reference and user pitches.
-	- At ~30 FPS, it redraws an HTML canvas where:
-		- X-axis = sample index over time
-		- Y-axis = clamped 50–1000 Hz
-		- Blue polyline = reference
-		- Red polyline = microphone
-
-## Browser Compatibility
-
-- Modern Chromium-based browsers (Chrome, Edge) and recent Safari should work.
-- Requirements:
-	- `AudioContext` / `webkitAudioContext`
-	- `navigator.mediaDevices.getUserMedia`
-	- `requestAnimationFrame`
-
-If microphone access fails, check the browser permissions for the site and ensure you are serving the app from `localhost` or over HTTPS.
-
-## Future Ideas
-
-- Derive the target frequency dynamically from the uploaded reference track instead of using a fixed 440 Hz.
-- Show note names (e.g., A4, C#4) alongside frequencies.
-- Add basic latency compensation or input calibration.
-- Save practice sessions or provide history/insights.
+**Ethical & Legal Audio Handling**: The application processes audio locally (browser) or temporarily (server RAM/temp) for analysis. Uploaded files are solely used for user-session analysis and are not permanently stored or used to train models, respecting user privacy and copyright.

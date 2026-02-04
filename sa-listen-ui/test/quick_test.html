@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Quick Bug Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #222; color: #eee; }
+        .pass { color: #4ade80; }
+        .fail { color: #f87171; }
+        .test-case { margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Running Tests...</h1>
+    <div id="results"></div>
+
+    <!-- Minimal DOM elements required by script.js to avoid errors -->
+    <div style="display:none;">
+        <input type="file" id="audioUpload">
+        <audio id="audioPlayer"></audio>
+        <div id="fileName"></div>
+        <div id="audioPreviewContainer"></div>
+        <div id="uploadArea"></div>
+        <div id="tempoValue"></div>
+        <div id="chordValue"></div>
+        <div id="songAnalysis"></div>
+        <input id="spotifyTrackInput">
+        <button id="loadSpotifyBtn"></button>
+        <iframe id="spotifyPlayer"></iframe>
+        <div id="spotifyCoverPlaceholder"></div>
+        <img id="spotifyCover">
+        <div id="spotifyTitle"></div>
+        <div id="spotifyArtist"></div>
+        <div id="spotifyTempo"></div>
+        <div id="spotifyKey"></div>
+        <div id="spotifyTimeSig"></div>
+        <div id="spotifyTempoSummary"></div>
+        <div id="chordSummary"></div>
+        <div id="pitchTarget"></div>
+        <div id="pitchUser">
+            <span class="pitch-note"></span>
+        </div>
+        <div id="pitchStatus"></div>
+        <div id="pitchCard"></div>
+        <canvas id="pitchGraph"></canvas>
+        <button id="refreshGraphBtn"></button>
+        <button id="startSingingBtn"></button>
+        <button id="stopSingingBtn"></button>
+    </div>
+    
+    <!-- Load the main script -->
+    <script src="../script.js"></script>
+    <!-- Load the test script -->
+    <script src="quick_test.js"></script>
+</body>
+</html>

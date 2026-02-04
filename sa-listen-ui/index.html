@@ -1,0 +1,306 @@
+<!--
+  SA Listen - AI Vocal Analysis
+  Copyright (C) 2024 Aswin Samuel A.
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SA Listen - AI Vocal Analysis</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tempo analysis helper library -->
+    <script src="https://unpkg.com/music-tempo@2.0.1/dist/music-tempo.min.js"></script>
+</head>
+
+<body>
+    <canvas id="bgVisualizer"></canvas>
+    <!-- Header: simple black strip with logo + name -->
+    <header class="app-header">
+        <div class="container header-content">
+            <div class="logo-container">
+                <!-- Logo now uses the banner from the shared logo folder -->
+                <img src="../logo/banner.png" alt="SA Listen Logo" class="logo"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                <div class="logo-fallback" style="display:none; font-weight:bold; font-size: 1.5rem;">SA</div>
+                <h1 class="app-name">SA Listen</h1>
+            </div>
+        </div>
+    </header>
+
+    <!-- Ambient musical layer behind the main content -->
+    <div class="ambient-notes" aria-hidden="true">
+        <span class="note note-1">♪</span>
+        <span class="note note-2">♩</span>
+        <span class="note note-3">♫</span>
+        <span class="note note-4">♬</span>
+    </div>
+
+    <main class="container main-content">
+        <div class="split-layout">
+            <!-- LEFT PANEL: Audio Splitter -->
+            <section class="card card-splitter" id="splitterCard">
+                <div class="card-header">
+                    <div class="card-title-with-icon">
+                        <span class="card-icon" aria-hidden="true">✂️</span>
+                        <div>
+                            <h2>Audio Splitter</h2>
+                            <p class="card-subtitle">Separate vocals and music from any track.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="splitter-upload-area" id="splitterUploadArea">
+                    <input type="file" id="splitterUpload" accept="audio/*" hidden>
+                    <div class="upload-visual small">
+                        <p class="upload-main">Drop audio to split</p>
+                        <button class="btn btn-primary" type="button"
+                            onclick="document.getElementById('splitterUpload').click()">
+                            Select File
+                        </button>
+                    </div>
+                    <div class="file-info-row">
+                        <p id="splitterFileName" class="file-name mt-2">No file selected</p>
+                        <button id="removeSplitFileBtn" class="btn btn-ghost btn-sm btn-remove hidden"
+                            title="Remove file">✕</button>
+                    </div>
+                </div>
+
+                <div class="splitter-actions hidden" id="splitterActions">
+                    <button id="processSplitBtn" class="btn btn-glow btn-primary full-width">
+                        Split Audio (Vocals / Music)
+                    </button>
+                </div>
+
+                <!-- Results Area -->
+                <div class="stems-container hidden" id="stemsContainer">
+                    <div class="stem-track">
+                        <span class="stem-label">Vocals</span>
+                        <audio id="stemVocals" controls class="stem-audio"></audio>
+                        <a id="downloadVocals" href="#" download class="btn btn-ghost btn-sm"
+                            title="Download Vocals">⬇</a>
+                    </div>
+                    <div class="stem-track">
+                        <span class="stem-label">Drums</span>
+                        <audio id="stemDrums" controls class="stem-audio"></audio>
+                        <a id="downloadDrums" href="#" download class="btn btn-ghost btn-sm"
+                            title="Download Drums">⬇</a>
+                    </div>
+                    <div class="stem-track">
+                        <span class="stem-label">Bass</span>
+                        <audio id="stemBass" controls class="stem-audio"></audio>
+                        <a id="downloadBass" href="#" download class="btn btn-ghost btn-sm" title="Download Bass">⬇</a>
+                    </div>
+                    <div class="stem-track">
+                        <span class="stem-label">Piano</span>
+                        <audio id="stemPiano" controls class="stem-audio"></audio>
+                        <a id="downloadPiano" href="#" download class="btn btn-ghost btn-sm"
+                            title="Download Piano">⬇</a>
+                    </div>
+                    <div class="stem-track">
+                        <span class="stem-label">Other</span>
+                        <audio id="stemOther" controls class="stem-audio"></audio>
+                        <a id="downloadOther" href="#" download class="btn btn-ghost btn-sm"
+                            title="Download Other">⬇</a>
+                    </div>
+                    <div class="splitter-reset">
+                        <button id="resetSplitterBtn" class="btn btn-ghost btn-danger">Start Over</button>
+                    </div>
+                </div>
+
+                <div class="loading-overlay hidden" id="splitterLoading">
+                    <div class="spinner"></div>
+                    <p>Separating audio... this may take a minute.</p>
+                </div>
+            </section>
+
+            <!-- RIGHT PANEL: user reference upload (used for analysis) -->
+            <section class="card card-reference" id="referenceCard">
+                <div class="card-header">
+                    <div class="card-title-with-icon">
+                        <span class="card-icon" aria-hidden="true">♪</span>
+                        <div>
+                            <h2>Reference Track</h2>
+                            <p class="card-subtitle">Drop in a song to set your target.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="audioUpload" accept="audio/*" hidden>
+                    <div class="upload-visual">
+                        <div class="upload-wave">
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </div>
+                        <p class="upload-main">Drop a track here</p>
+                        <p class="upload-sub">or tap to browse from your device</p>
+                        <button class="btn btn-secondary" type="button"
+                            onclick="document.getElementById('audioUpload').click()">
+                            <span class="icon">＋</span>
+                            Choose audio
+                        </button>
+                        <p id="fileName" class="file-name">No file selected</p>
+                    </div>
+                </div>
+
+                <div class="audio-preview hidden" id="audioPreviewContainer">
+                    <audio id="audioPlayer" controls class="custom-audio"></audio>
+                    <button id="removeReferenceBtn" class="btn btn-ghost btn-remove" aria-label="Remove file"
+                        title="Remove reference track" style="margin-top: 8px;">Remove</button>
+                </div>
+
+                <!-- Basic song analysis for the reference track -->
+                <!-- Basic song analysis for the reference track -->
+                <div class="song-analysis" id="songAnalysis">
+                    <h3 class="song-analysis-title">Song profile</h3>
+                    <div class="song-analysis-grid">
+                        <div class="analysis-item">
+                            <span class="analysis-label">Tempo</span>
+                            <span class="analysis-value" id="tempoValue">--</span>
+                        </div>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Main chord</span>
+                            <span class="analysis-value" id="chordValue">--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- BOTTOM ANALYSIS: pitch comparison graph and live controls -->
+        <section class="card card-pitch" id="pitchCard" aria-label="Live pitch feedback panel">
+            <div class="card-header pitch-header">
+                <div>
+                    <h2>Live Pitch Feedback</h2>
+                    <p class="card-subtitle">Glanceable targets and gentle, musical feedback.</p>
+                </div>
+                <span class="badge badge-soft">Demo</span>
+            </div>
+
+            <div class="pitch-body">
+                <div class="pitch-values">
+                    <div class="pitch-block">
+                        <span class="pitch-label">Target</span>
+                        <span class="pitch-value" id="pitchTarget">440 Hz</span>
+                        <span class="pitch-note">Concert A</span>
+                    </div>
+                    <div class="pitch-block">
+                        <span class="pitch-label">You</span>
+                        <span class="pitch-value" id="pitchUser">—</span>
+                        <span class="pitch-note">Waiting for input</span>
+                    </div>
+                </div>
+
+                <div class="pitch-status-row">
+                    <div class="pitch-status-text">
+                        <span class="pitch-status-label">Status</span>
+                        <span class="status-pill status-waiting" id="pitchStatus">Waiting</span>
+                    </div>
+                    <div class="mini-visualizer" aria-hidden="true">
+                        <span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+
+                <!-- Live frequency comparison graph (reference vs you) plus controls on the right -->
+                <div class="analysis-row">
+                    <div class="pitch-graph">
+                        <canvas id="pitchGraph" width="600" height="140"
+                            aria-label="Live frequency comparison graph"></canvas>
+                        <div class="pitch-graph-footer">
+                            <p class="card-subtitle">
+                                Reference (blue) · You (red)
+                            </p>
+                            <button type="button" class="btn btn-ghost" id="refreshGraphBtn">Refresh graph</button>
+                        </div>
+                        <div class="analysis-summary">
+                            <div class="summary-item">
+                                <span class="summary-label">Tempo</span>
+                                <span class="summary-value" id="tempoSummary">--</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Reference chords</span>
+                                <span class="summary-value" id="chordSummary">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="analysis-controls">
+                        <p class="controls-label">Live singing</p>
+                        <button class="btn btn-primary btn-glow" id="startSingingBtn" type="button">Start
+                            Singing</button>
+                        <button class="btn btn-outline btn-glow" id="stopSingingBtn" type="button">Stop Singing</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SINGING REPORT: Shown after the session stops -->
+        <section class="card card-report hidden" id="reportCard" aria-label="Singing performance report">
+            <div class="card-header">
+                <div class="card-title-with-icon">
+                    <span class="card-icon" style="background: rgba(16, 185, 129, 0.2); color: #34D399;">★</span>
+                    <div>
+                        <h2>Session Report</h2>
+                        <p class="card-subtitle">How accurate was your singing?</p>
+                    </div>
+                </div>
+                <button class="btn btn-ghost" id="closeReportBtn" aria-label="Close report">Close</button>
+            </div>
+
+            <div class="report-body">
+                <div class="report-score-block">
+                    <div class="report-circle">
+                        <span class="report-percentage" id="reportScore">--%</span>
+                        <span class="report-label">Accuracy</span>
+                    </div>
+                </div>
+
+                <div class="report-details">
+                    <div class="report-stat">
+                        <span class="stat-value text-success" id="reportExcellent">0%</span>
+                        <span class="stat-label">Excellent</span>
+                    </div>
+                    <div class="report-stat">
+                        <span class="stat-value text-warning" id="reportNear">0%</span>
+                        <span class="stat-label">Good / Near</span>
+                    </div>
+                    <div class="report-stat">
+                        <span class="stat-value text-error" id="reportMiss">0%</span>
+                        <span class="stat-label">Off Pitch</span>
+                    </div>
+                </div>
+
+                <div class="report-feedback">
+                    <p id="reportMessage" class="report-message">Sing to generate a report.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <p>Sing. Match. Improve.</p>
+        <p><small><a href="https://github.com/aswinsamuel-codes/SA-Listen">Source Code (AGPL v3)</a></small></p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
