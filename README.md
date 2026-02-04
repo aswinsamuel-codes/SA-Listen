@@ -11,7 +11,7 @@ SA Listen is an AI-powered real-time vocal analysis tool designed to help singer
   - Live frequency graph (Reference vs. User)
   - Neon wave ambient visualizer
   - Pitch accuracy scoring (Match, Near, Off)
-- **Spotify Integration**: Syncs beat/bar information for metadata (tempo/key) analysis.
+
 
 ## Architecture
 
@@ -95,5 +95,6 @@ We welcome experimental ideas like:
 Final decisions on architecture and roadmap are maintained by the core maintainers to ensure research integrity and product vision.
 
 If it sounds crazy — we want it.
+
 
 
