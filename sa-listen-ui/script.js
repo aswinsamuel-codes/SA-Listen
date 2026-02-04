@@ -1311,4 +1311,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     createParticles();
 
+    // --- Interactive Background Elements: Floating Notes on Click ---
+    document.addEventListener('click', (e) => {
+        // Only spawn if clicking the background (not interactive elements)
+        const target = e.target;
+        if (target.closest('.card') || target.closest('button') || target.tagName === 'INPUT' || target.closest('.how-it-works')) return;
+
+        spawnMusicalNote(e.clientX, e.clientY);
+    });
+
+    function spawnMusicalNote(x, y) {
+        const notes = ['♪', '♫', '♬', '♩', '♭', '♮', '♯', '𝄞'];
+        const note = notes[Math.floor(Math.random() * notes.length)];
+
+        const el = document.createElement('div');
+        el.textContent = note;
+        el.style.position = 'fixed';
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+        // Dark note color for cream background
+        el.style.color = `rgba(0, 0, 0, ${0.4 + Math.random() * 0.4})`;
+        el.style.fontSize = `${1.5 + Math.random() * 2}rem`;
+        el.style.fontWeight = 'bold';
+        el.style.pointerEvents = 'none';
+        el.style.zIndex = '50'; /* Above everything temporarily */
+        el.style.userSelect = 'none';
+
+        // Initial state
+        el.style.transform = `translate(-50%, -50%) scale(0.5) rotate(${Math.random() * 60 - 30}deg)`;
+        el.style.transition = 'all 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        el.style.opacity = '1';
+
+        document.body.appendChild(el);
+
+        // Trigger animation
+        requestAnimationFrame(() => {
+            el.style.transform = `translate(-50%, -150px) scale(1.2) rotate(${Math.random() * 60 - 30}deg)`;
+            el.style.opacity = '0';
+        });
+
+        // Cleanup
+        setTimeout(() => {
+            if (document.body.contains(el)) {
+                document.body.removeChild(el);
+            }
+        }, 1200);
+    }
+
 });
