@@ -1,4 +1,4 @@
-# SA Listen (Semantic Audio Listen)
+# SA Listen 
 
 SA Listen is an AI-powered real-time vocal analysis tool designed to help singers improve their pitch accuracy. It provides immediate visual feedback by comparing a singer's live input against a reference track, featuring high-quality audio separation and dynamic visualization.
 
@@ -95,4 +95,5 @@ We welcome experimental ideas like:
 Final decisions on architecture and roadmap are maintained by the core maintainers to ensure research integrity and product vision.
 
 If it sounds crazy — we want it.
+
 
