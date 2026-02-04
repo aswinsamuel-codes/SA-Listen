@@ -1198,24 +1198,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Draw multiple layered waves
         // Draw multiple layered waves - DARKER and more spread out
-        bgCtx.lineWidth = 1; /* Thinner lines */
+        bgCtx.lineWidth = 2; /* Thicker lines for visibility */
         bgCtx.lineCap = 'round';
 
-        // Wave 1: Cyan (Very subtle)
+        // Wave 1: Dark Blue/Teal (Reference)
         bgCtx.beginPath();
-        bgCtx.strokeStyle = 'rgba(0, 255, 255, 0.15)';
+        bgCtx.strokeStyle = 'rgba(0, 100, 200, 0.6)';
         drawWavePath(dataArray, 0, height * 0.5, 1.2, 0); /* Center height */
         bgCtx.stroke();
 
-        // Wave 2: Magenta
+        // Wave 2: Dark Magenta/Purple
         bgCtx.beginPath();
-        bgCtx.strokeStyle = 'rgba(255, 0, 255, 0.1)';
+        bgCtx.strokeStyle = 'rgba(180, 0, 180, 0.5)';
         drawWavePath(dataArray, 50, height * 0.55, 1.0, 500);
         bgCtx.stroke();
 
-        // Wave 3: Lime
+        // Wave 3: Dark Green/Teal
         bgCtx.beginPath();
-        bgCtx.strokeStyle = 'rgba(50, 255, 50, 0.1)';
+        bgCtx.strokeStyle = 'rgba(0, 150, 100, 0.5)';
         drawWavePath(dataArray, 100, height * 0.45, 0.8, 1000);
         bgCtx.stroke();
 

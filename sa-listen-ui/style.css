@@ -79,7 +79,8 @@ body {
     z-index: 0;
     /* Brought forward from -1 */
     pointer-events: none;
-    opacity: 0.4;
+    opacity: 1;
+    /* Fully visible, controlled by canvas colors */
     /* Increased from 0.15 for better visibility */
 }
 
