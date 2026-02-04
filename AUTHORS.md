@@ -2,13 +2,13 @@
 
 ## Core Development Team
 
-**Aswin Samuel A.**
-- Content: System Architecture, Full-Stack Development, AI Integration
-- Role: Lead Developer & Researcher
-
 **Sukin S**
 - Content: Full-Stack Development
 - Role: Core Developer
+
+**Aswin Samuel A.**
+- Content: System Architecture, Full-Stack Development, AI Integration
+- Role: Lead Developer & Researcher
 
 ## Acknowledgements
 

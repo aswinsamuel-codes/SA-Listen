@@ -1,5 +1,5 @@
 # SA Listen - AI Vocal Analysis
-# Copyright (C) 2024 Aswin Samuel A., Sukin S
+# Copyright (C) 2024 Sukin S, Aswin Samuel A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
