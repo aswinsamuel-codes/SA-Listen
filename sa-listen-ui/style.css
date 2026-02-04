@@ -120,6 +120,13 @@ body {
 /* ... (rest of ambient notes) ... */
 
 /* Audio Splitter Panel */
+.card-splitter {
+    min-height: 680px;
+    /* Fixed robust height */
+    display: flex;
+    flex-direction: column;
+}
+
 .splitter-upload-area {
     border: 2px dashed rgba(255, 255, 255, 0.15);
     border-radius: var(--border-radius-lg);
@@ -128,6 +135,12 @@ body {
     text-align: center;
     transition: all var(--transition-fast);
     background: rgba(0, 0, 0, 0.2);
+    /* Center content vertically when occupying full height */
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 
 .splitter-upload-area:hover {
@@ -375,6 +388,10 @@ body {
     /* Increased gap from 16px */
     margin-top: 32px;
     /* Increased margin from 20px */
+    flex: 1;
+    /* Allow it to fill space if needed */
+    justify-content: flex-start;
+    /* items start at top */
 }
 
 .stem-track {
@@ -425,8 +442,14 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    justify-content: center;
+    /* Center vertically */
+    gap: 16px;
     color: var(--text-secondary);
+    flex: 1;
+    /* Fill the remaining height */
+    min-height: 300px;
+    /* Ensure visibility */
 }
 
 .spinner {
