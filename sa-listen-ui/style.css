@@ -1,0 +1,998 @@
+/*
+ * SA Listen - AI Vocal Analysis
+ * Copyright (C) 2024 Sukin S, Aswin Samuel A.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+:root {
+    /* Premium Cream & Black Theme */
+    --bg-page: #FAF7F2;
+    --bg-card: #0F0F0F;
+
+    --text-primary: #F2F2F2;
+    /* Main text on cards */
+    --text-secondary: #A0A0A0;
+    /* Subtitles on cards */
+    --text-tertiary: #666666;
+    /* Footer/Muted text on light bg */
+
+    --text-on-light: #1A1A1A;
+    /* Main text on cream bg */
+
+    --accent-primary: #3B82F6;
+    /* Vivid Blue (Reference) */
+    --accent-secondary: #EF4444;
+    /* Red (User) */
+    --accent-glow: rgba(59, 130, 246, 0.4);
+    --accent-gradient: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+
+    --success: #10B981;
+    --error: #EF4444;
+
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --border-radius-lg: 24px;
+    --border-radius-md: 16px;
+    --border-radius-sm: 8px;
+
+    --container-width: 1200px;
+    --transition-fast: 0.2s ease;
+    --transition-normal: 0.3s ease;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-page);
+    color: var(--text-on-light);
+    font-family: var(--font-family);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    position: relative;
+    /* Ensure z-index context */
+}
+
+#bgVisualizer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.15;
+    /* Much more subtle/dark */
+}
+
+/* Floating Black Elements (Background) */
+.floating-particle {
+    position: fixed;
+    background: rgba(0, 0, 0, 0.03);
+    /* Very subtle black */
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: -1;
+    animation: floatParticle 15s infinite ease-in-out;
+}
+
+@keyframes floatParticle {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    50% {
+        transform: translate(20px, -20px);
+    }
+}
+
+/* Ambient Background Elements */
+.ambient-notes {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+/* ... (rest of ambient notes) ... */
+
+/* Audio Splitter Panel */
+.splitter-upload-area {
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    border-radius: var(--border-radius-lg);
+    padding: 32px;
+    text-align: center;
+    transition: all var(--transition-fast);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.splitter-upload-area:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(0, 0, 0, 0.3);
+    transform: translateY(-4px);
+    /* Floating effect on hover */
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+}
+
+.upload-visual.small {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.file-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    /* Increased gap */
+    margin-top: 12px;
+    min-height: 32px;
+    /* Stable height */
+}
+
+.btn-remove {
+    /* Align parallel/inline */
+    padding: 4px 8px;
+    line-height: 1;
+    margin-top: 0;
+    /* Remove top margin that might push it down */
+}
+
+.ambient-notes .note {
+    position: absolute;
+    color: rgba(0, 0, 0, 0.04);
+    /* Subtle dark notes on cream */
+    font-size: 4rem;
+    filter: blur(1px);
+    animation: floatNote 20s linear infinite;
+    user-select: none;
+}
+
+.ambient-notes .note-1 {
+    left: 10%;
+    top: 20%;
+    animation-delay: 0s;
+    font-size: 3rem;
+}
+
+.ambient-notes .note-2 {
+    left: 85%;
+    top: 15%;
+    animation-delay: -5s;
+    font-size: 5rem;
+}
+
+.ambient-notes .note-3 {
+    left: 20%;
+    top: 80%;
+    animation-delay: -10s;
+    font-size: 2.5rem;
+}
+
+.ambient-notes .note-4 {
+    left: 75%;
+    top: 70%;
+    animation-delay: -15s;
+    font-size: 4rem;
+}
+
+@keyframes floatNote {
+    0% {
+        transform: translateY(100vh) rotate(0deg);
+        opacity: 0;
+    }
+
+    20% {
+        opacity: 1;
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(-20vh) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+/* Layout */
+.container {
+    width: 100%;
+    max-width: var(--container-width);
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+/* Header */
+.app-header {
+    background-color: #0F0F0F;
+    width: 100%;
+    padding: 24px 0;
+    margin-bottom: 40px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    position: relative;
+    z-index: 10;
+}
+
+.header-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.logo {
+    height: 40px;
+    width: auto;
+}
+
+.app-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #FFFFFF;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    padding-bottom: 60px;
+    position: relative;
+    z-index: 1;
+}
+
+.split-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 32px;
+    align-items: start;
+}
+
+/* Card Styles */
+.card {
+    background: var(--bg-card);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    /* Subtle border */
+    border-radius: var(--border-radius-lg);
+    padding: 32px;
+    color: var(--text-primary);
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.2);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.card:hover {
+    box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+}
+
+.card-title-with-icon {
+    display: flex;
+    gap: 16px;
+}
+
+.card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #FFF;
+}
+
+.card h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #FFF;
+    margin-bottom: 4px;
+}
+
+.card-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+/* Audio Splitter Panel */
+.splitter-upload-area {
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    border-radius: var(--border-radius-lg);
+    padding: 32px;
+    text-align: center;
+    transition: all var(--transition-fast);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.splitter-upload-area:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.upload-visual.small {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.file-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.stems-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.stem-track {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.stem-label {
+    min-width: 60px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.stem-audio {
+    flex: 1;
+    height: 32px;
+}
+
+.loading-overlay {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-secondary);
+}
+
+.spinner {
+    width: 30px;
+    height: 30px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+
+/* Reference Upload Panel */
+.upload-area {
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    border-radius: var(--border-radius-md);
+    padding: 40px 20px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.02);
+    transition: all var(--transition-normal);
+    cursor: pointer;
+    margin-bottom: 24px;
+}
+
+.upload-area:hover {
+    border-color: var(--accent-primary);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.upload-visual {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.upload-wave {
+    display: flex;
+    gap: 6px;
+    height: 32px;
+    align-items: center;
+}
+
+.upload-wave span {
+    width: 6px;
+    height: 100%;
+    background: var(--accent-primary);
+    border-radius: 4px;
+    animation: wave 1.2s ease-in-out infinite;
+}
+
+.upload-wave span:nth-child(2) {
+    animation-delay: 0.1s;
+    height: 60%;
+}
+
+.upload-wave span:nth-child(3) {
+    animation-delay: 0.2s;
+    height: 80%;
+}
+
+.upload-wave span:nth-child(4) {
+    animation-delay: 0.3s;
+    height: 50%;
+}
+
+.upload-wave span:nth-child(5) {
+    animation-delay: 0.4s;
+    height: 70%;
+}
+
+@keyframes wave {
+
+    0%,
+    100% {
+        transform: scaleY(0.5);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: scaleY(1);
+        opacity: 1;
+    }
+}
+
+.upload-main {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #FFF;
+}
+
+.upload-sub {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.file-name {
+    margin-top: 12px;
+    font-size: 0.9rem;
+    color: var(--accent-primary);
+    font-weight: 500;
+}
+
+.song-analysis {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--border-radius-md);
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.song-analysis-title {
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.song-analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 16px;
+}
+
+.analysis-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.analysis-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+.analysis-value {
+    font-size: 1.25rem;
+    color: #FFF;
+    font-weight: 700;
+}
+
+/* Pitch Feedback Panel */
+.pitch-body {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.pitch-values {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.pitch-block {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--border-radius-md);
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.pitch-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
+.pitch-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #FFF;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+}
+
+.pitch-note {
+    font-size: 1rem;
+    color: var(--accent-primary);
+    font-weight: 500;
+}
+
+.pitch-status-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 100px;
+    width: fit-content;
+    margin: 0 auto;
+}
+
+.pitch-status-label {
+    color: var(--text-secondary);
+    margin-right: 8px;
+    font-size: 0.9rem;
+}
+
+.status-pill {
+    padding: 6px 16px;
+    border-radius: 100px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.status-waiting {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+}
+
+.status-match {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34D399;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+}
+
+.status-near {
+    background: rgba(245, 158, 11, 0.2);
+    color: #FBBF24;
+}
+
+.mini-visualizer {
+    display: flex;
+    gap: 4px;
+    height: 20px;
+    align-items: flex-end;
+}
+
+.mini-visualizer span {
+    width: 4px;
+    background: var(--accent-primary);
+    border-radius: 2px;
+    animation: bar 1s ease-in-out infinite;
+}
+
+.mini-visualizer span:nth-child(1) {
+    height: 40%;
+    animation-delay: 0s;
+}
+
+.mini-visualizer span:nth-child(2) {
+    height: 80%;
+    animation-delay: 0.1s;
+}
+
+.mini-visualizer span:nth-child(3) {
+    height: 50%;
+    animation-delay: 0.2s;
+}
+
+.mini-visualizer span:nth-child(4) {
+    height: 70%;
+    animation-delay: 0.3s;
+}
+
+@keyframes bar {
+
+    0%,
+    100% {
+        transform: scaleY(0.5);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: scaleY(1);
+        opacity: 1;
+    }
+}
+
+.analysis-row {
+    display: grid;
+    grid-template-columns: 1fr 200px;
+    gap: 32px;
+    align-items: center;
+}
+
+.pitch-graph {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--border-radius-md);
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pitch-graph canvas {
+    width: 100%;
+    height: 140px;
+    display: block;
+}
+
+.pitch-graph-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+}
+
+.analysis-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.controls-label {
+    text-align: center;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+}
+
+.analysis-summary {
+    margin-top: 16px;
+    display: flex;
+    gap: 24px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.summary-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.summary-value {
+    font-size: 0.9rem;
+    color: #FFF;
+    font-weight: 500;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 100px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: none;
+    font-family: inherit;
+}
+
+.btn-primary {
+    background: var(--accent-gradient);
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #FFF;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-outline {
+    background: transparent;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    color: #FFF;
+}
+
+.btn-outline:hover {
+    border-color: #FFF;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    padding: 8px 16px;
+}
+
+.btn-ghost:hover {
+    color: #FFF;
+}
+
+.btn-remove:hover {
+    color: #ef4444;
+    /* Red color */
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.btn-glow {
+    position: relative;
+    overflow: hidden;
+}
+
+/* Footer */
+.app-footer {
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 0.875rem;
+    padding: 40px;
+    margin-top: auto;
+}
+
+/* Utilities */
+.hidden {
+    display: none !important;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-soft {
+    background: rgba(59, 130, 246, 0.1);
+    color: #60A5FA;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .split-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .analysis-row {
+        grid-template-columns: 1fr;
+    }
+
+    .pitch-values {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Active Recording State */
+.btn-recording {
+    background: #EF4444 !important;
+    color: white !important;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5) !important;
+    animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+    0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+/* Singing Report Card */
+.card-report {
+    border-color: rgba(255, 255, 255, 0.2);
+    animation: slideInUp 0.5s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.report-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+}
+
+.report-score-block {
+    display: flex;
+    justify-content: center;
+}
+
+.report-circle {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    border: 8px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0) 70%);
+    position: relative;
+}
+
+.report-percentage {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #FFF;
+    line-height: 1;
+}
+
+.report-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.report-details {
+    display: flex;
+    gap: 40px;
+    text-align: center;
+}
+
+.report-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.text-success {
+    color: #34D399;
+}
+
+.text-warning {
+    color: #FBBF24;
+}
+
+.text-error {
+    color: #EF4444;
+}
+
+.report-message {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #FFF;
+    text-align: center;
+    max-width: 400px;
+    line-height: 1.5;
+}
