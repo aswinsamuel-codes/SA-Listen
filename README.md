@@ -83,7 +83,7 @@ See the [LICENSE](LICENSE) file for the full text.
 
 **Ethical & Legal Audio Handling**: The application processes audio locally (browser) or temporarily (server RAM/temp) for analysis. Uploaded files are solely used for user-session analysis and are not permanently stored or used to train models, respecting user privacy and copyright.
 
-## Crazy Ideas Welcome 🎶
+## Crazy Ideas Welcome 
 
 We welcome experimental ideas like:
 - Pitch emotion detection
@@ -95,3 +95,4 @@ We welcome experimental ideas like:
 Final decisions on architecture and roadmap are maintained by the core maintainers to ensure research integrity and product vision.
 
 If it sounds crazy — we want it.
+
