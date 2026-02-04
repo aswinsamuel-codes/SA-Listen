@@ -269,11 +269,15 @@ body {
 }
 
 .logo {
-    height: 40px;
+    height: 80px;
+    /* Increased size for visibility */
     width: auto;
+    object-fit: contain;
 }
 
 .app-name {
+    display: none;
+    /* Hidden as text is in the logo */
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.02em;
