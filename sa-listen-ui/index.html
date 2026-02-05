@@ -175,6 +175,20 @@
                 </div>
 
                 <!-- Basic song analysis for the reference track -->
+                <!-- Practice Tools: Looping -->
+                <div class="practice-tools" id="practiceTools" style="margin-top: 24px; display: none;">
+                    <h3 class="song-analysis-title" style="margin-bottom: 8px;">Practice Tools</h3>
+                    <div class="loop-controls"
+                        style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                        <button id="setLoopStartBtn" class="btn btn-ghost btn-sm">Set Start (A)</button>
+                        <div class="loop-status" id="loopStatus"
+                            style="font-family: monospace; font-size: 0.8rem; color: var(--accent-primary);">--:-- /
+                            --:--</div>
+                        <button id="setLoopEndBtn" class="btn btn-ghost btn-sm">Set End (B)</button>
+                        <button id="toggleLoopBtn" class="btn btn-outline btn-sm" disabled> Enable Loop </button>
+                    </div>
+                </div>
+
                 <!-- Basic song analysis for the reference track -->
                 <div class="song-analysis" id="songAnalysis">
                     <h3 class="song-analysis-title">Song profile</h3>

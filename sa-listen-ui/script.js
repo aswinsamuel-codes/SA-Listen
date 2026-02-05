@@ -140,6 +140,81 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Practice Tools: A-B Looping ---
+    let loopStart = 0;
+    let loopEnd = 0;
+    let isLooping = false;
+    let loopCheckInterval = null;
+
+    const practiceTools = document.getElementById('practiceTools');
+    const setLoopStartBtn = document.getElementById('setLoopStartBtn');
+    const setLoopEndBtn = document.getElementById('setLoopEndBtn');
+    const toggleLoopBtn = document.getElementById('toggleLoopBtn');
+    const loopStatus = document.getElementById('loopStatus');
+
+    function formatTime(seconds) {
+        if (!seconds && seconds !== 0) return "--:--";
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function updateLoopUI() {
+        loopStatus.textContent = `${formatTime(loopStart)} / ${formatTime(loopEnd)}`;
+
+        // Only enable loop toggle if we have a valid range
+        if (loopEnd > loopStart + 0.5) {
+            toggleLoopBtn.disabled = false;
+        } else {
+            toggleLoopBtn.disabled = true;
+            isLooping = false; // logic failsafe
+        }
+
+        if (isLooping) {
+            toggleLoopBtn.classList.remove('btn-outline');
+            toggleLoopBtn.classList.add('btn-primary', 'btn-glow');
+            toggleLoopBtn.textContent = "Loop Active";
+        } else {
+            toggleLoopBtn.classList.add('btn-outline');
+            toggleLoopBtn.classList.remove('btn-primary', 'btn-glow');
+            toggleLoopBtn.textContent = "Enable Loop";
+        }
+    }
+
+    if (setLoopStartBtn && audioPlayer) {
+        setLoopStartBtn.addEventListener('click', () => {
+            loopStart = audioPlayer.currentTime;
+            updateLoopUI();
+        });
+
+        setLoopEndBtn.addEventListener('click', () => {
+            loopEnd = audioPlayer.currentTime;
+            updateLoopUI();
+        });
+
+        toggleLoopBtn.addEventListener('click', () => {
+            isLooping = !isLooping;
+            updateLoopUI();
+
+            if (isLooping) {
+                // Seek to start immediately if outside range
+                if (audioPlayer.currentTime < loopStart || audioPlayer.currentTime > loopEnd) {
+                    audioPlayer.currentTime = loopStart;
+                }
+            }
+        });
+
+        // The Looping Engine
+        audioPlayer.addEventListener('timeupdate', () => {
+            if (!isLooping) return;
+
+            if (audioPlayer.currentTime >= loopEnd) {
+                audioPlayer.currentTime = loopStart;
+                // audioPlayer.play(); // Usually redundant but safe
+            }
+        });
+    }
+
     // Handle file selection via input
     audioUpload.addEventListener('change', handleFileSelect);
 
@@ -433,6 +508,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function unlockSessionVisuals() {
         startSingingBtn.disabled = false;
         if (stopSingingBtn) stopSingingBtn.disabled = false;
+
+        // Show Practice Tools
+        const practiceTools = document.getElementById('practiceTools');
+        if (practiceTools) practiceTools.style.display = 'block';
     }
 
     /**
