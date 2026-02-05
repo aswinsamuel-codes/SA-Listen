@@ -111,6 +111,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let timeDomainData = null;
     let rafId = null;
 
+    // Session Recording State
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    const recordingPreview = document.getElementById('recordingPreview');
+    const sessionAudio = document.getElementById('sessionAudio');
+    const downloadSessionBtn = document.getElementById('downloadSessionBtn');
+
     // Separate analyser for the reference track (<audio> element)
     // so we can detect its pitch independently of the microphone.
     let referenceAnalyser = null;
@@ -588,6 +595,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Reset session score
             sessionScore = { total: 0, match: 0, near: 0, miss: 0 };
+
+            // --- SESSION RECORDING START ---
+            if (recordingPreview) recordingPreview.style.display = 'none'; // Hide previous
+            recordedChunks = [];
+
+            try {
+                mediaRecorder = new MediaRecorder(mediaStream);
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) recordedChunks.push(event.data);
+                };
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                    const audioURL = URL.createObjectURL(blob);
+                    if (sessionAudio) sessionAudio.src = audioURL;
+                    if (downloadSessionBtn) {
+                        downloadSessionBtn.href = audioURL;
+                        // Beautiful timestamped filename
+                        const dateStr = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                        downloadSessionBtn.download = `SA-Listen-Session-${dateStr}.webm`;
+                    }
+                    if (recordingPreview) recordingPreview.style.display = 'block';
+                };
+                mediaRecorder.start();
+            } catch (e) {
+                console.warn("MediaRecorder failed:", e);
+            }
+            // -------------------------------
+
             /*
             pitchUserNoteEl.textContent = 'Listening a0 b7 a0Stay close to your mic';
 
@@ -765,6 +800,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mediaStream) {
             mediaStream.getTracks().forEach(track => track.stop());
             mediaStream = null;
+        }
+
+        // Stop Recording
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
         }
 
         // Pause the reference track if it was playing, and remember

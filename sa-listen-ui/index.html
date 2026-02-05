@@ -340,6 +340,18 @@
                 <div class="report-feedback">
                     <p id="reportMessage" class="report-message">Sing to generate a report.</p>
                 </div>
+
+                <!-- Session Recording Player -->
+                <div class="recording-preview" id="recordingPreview"
+                    style="margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.1); display: none;">
+                    <h3 class="song-analysis-title" style="margin-bottom: 12px; color: var(--text-primary);">Session
+                        Recording</h3>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <audio id="sessionAudio" controls style="flex: 1; height: 36px; border-radius: 18px;"></audio>
+                        <a id="downloadSessionBtn" class="btn btn-outline btn-sm" download="session.webm">⬇ Save
+                            Take</a>
+                    </div>
+                </div>
             </div>
         </section>
     </main>
