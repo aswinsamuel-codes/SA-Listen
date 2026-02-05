@@ -1388,44 +1388,71 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function drawWavePath(data, offsetIndex, basePath, scale, timeOffset) {
-        // Smooth curve through data points
-        // Simplified for performance: just lines
-        let x = 0;
+        // Mirrored Spectrum: Center is High freq, Sides are Low freq? 
+        // Or Center Low, Sides High?
+        // Let's do: Center = Active Lows/Mids, Sides = Tapering.
+        // Actually, user wants "one end active, other end still" fixed.
+        // Best approach: Double the active spectrum. Left half = 0..Limit, Right half = Limit..0 (Mirror)
 
-        // Use 75% of the frequency spectrum (up to ~16kHz) to catch hi-hats/cymbals
-        // This makes the right side of the visualizer more active.
-        const dataLimit = Math.floor(data.length * 0.75);
-        const sliceWidth = bgCanvas.width * 1.0 / dataLimit;
+        const dataLimit = Math.floor(data.length * 0.40); // Focus on first 40% (Bass/Mids/HighMids)
+        // We will draw 2x this limit (Reflected)
 
-        const t = Date.now() / 2000;
-
+        // We iterate pixels across width
+        const width = bgCanvas.width;
         bgCtx.moveTo(0, basePath);
 
-        for (let i = 0; i < dataLimit; i++) {
-            // V is 0..1
-            const v = data[i] / 255.0;
+        const t = Date.now() / 2000;
+        const totalPoints = 100; // Number of points to draw
 
-            // Modulation factor: 
-            // If idle, data[i] is small (~20-40), so v is ~0.1. We want gentle waves.
-            // If active, v can be up to 1.0. We want big reactions.
+        for (let i = 0; i <= totalPoints; i++) {
+            const x = (i / totalPoints) * width;
 
-            // We use 'v' to displace the wave from the center.
-            // We also add a traveling sine wave 'Math.sin(i * 0.1 + t + timeOffset)' for movement.
+            // Map x to frequency index
+            // Symmetrical: 0 (Left) -> 1 (Center) -> 0 (Right)
+            // Normalized 0..1..0
+            let norm = i / totalPoints;
+            // 0 -> 0.5 -> 1
+            // We want frequency index to go 0 -> Max -> 0?
+            // Or Max -> 0 -> Max?
+            // Usually Bass in Center looks best. (Index 0 is Bass)
+            // So Norm: 1 -> 0 -> 1 ? (High -> Low -> High) -> Edges are still
+            // User complains "other end is still". That implies Highs are dead.
+            // If we put Bass at edges, edges move.
 
-            // Dynamic scale based on magnitude to keep idle gentle and active loud
-            const magnitude = (data[i] > 50) ? 150 : 50;
+            // Let's map linear 0 -> Limit -> 0.
+            // But wait, if we want activity everywhere, just repeating the pattern might be better.
+            // Let's try Bass at Edges (Active) and Treble in Center?
 
+            // Let's do simple Mirror:
+            // Left Half: data[0] ... data[limit]
+            // Right Half: data[limit] ... data[0]
+
+            let dataIndex;
+            if (norm < 0.5) {
+                // Left side: 0 -> Limit
+                // norm 0..0.5 maps to 0..1
+                dataIndex = Math.floor((norm * 2) * dataLimit);
+            } else {
+                // Right side: Limit -> 0
+                // norm 0.5..1 maps to 1..0
+                dataIndex = Math.floor(((1 - norm) * 2) * dataLimit);
+            }
+
+            const val = data[dataIndex] || 0;
+            const v = val / 255.0;
+
+            const magnitude = (val > 50) ? 150 : 50;
             const displacement = v * magnitude * scale;
-            const waveMotion = Math.sin(i * 0.05 + t + timeOffset) * 20;
+
+            // wave travel
+            const waveMotion = Math.sin(i * 0.1 + t + timeOffset) * 20;
 
             const y = basePath + waveMotion - displacement;
 
             if (i === 0) bgCtx.moveTo(x, y);
             else bgCtx.lineTo(x, y);
-
-            x += sliceWidth;
         }
-        bgCtx.lineTo(bgCanvas.width, basePath);
+        bgCtx.lineTo(width, basePath);
     }
 
     // Start visualizer
