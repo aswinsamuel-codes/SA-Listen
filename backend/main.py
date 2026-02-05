@@ -40,6 +40,11 @@ assets_path = os.path.join(os.path.dirname(__file__), "..", "assets")
 if os.path.exists(assets_path):
     app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
 
+# Mount logo directory explicitly so ../logo/logo.jpeg works
+logo_path = os.path.join(os.path.dirname(__file__), "..", "logo")
+if os.path.exists(logo_path):
+    app.mount("/logo", StaticFiles(directory=logo_path), name="logo")
+
 # Mount frontend files logic moved to bottom to avoid blocking API POST requests
 
 # Enable CORS for frontend communication
