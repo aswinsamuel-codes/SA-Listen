@@ -210,13 +210,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (audioPlayer.currentTime >= loopEnd) {
                 audioPlayer.currentTime = loopStart;
-                // audioPlayer.play(); // Usually redundant but safe
             }
         });
     }
 
     // Handle file selection via input
     audioUpload.addEventListener('change', handleFileSelect);
+
+    // Live singing controls
+    if (startSingingBtn) {
+        startSingingBtn.addEventListener('click', () => {
+            // If already listening, treat as toggle-off? No, we have a separate Stop button.
+            // But let's prevent double-start.
+            if (isListening) return;
+            startMicrophone();
+        });
+    }
+
+    if (stopSingingBtn) {
+        stopSingingBtn.addEventListener('click', () => {
+            if (!isListening) return;
+            stopMicrophone();
+        });
+    }
 
     // --- Audio Splitter Logic ---
     const splitterUpload = document.getElementById('splitterUpload');
