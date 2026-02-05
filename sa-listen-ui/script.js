@@ -1351,13 +1351,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Smooth curve through data points
         // Simplified for performance: just lines
         let x = 0;
-        const sliceWidth = bgCanvas.width * 1.0 / (data.length / 4); // Draw only low/mid freqs
+
+        // Use 75% of the frequency spectrum (up to ~16kHz) to catch hi-hats/cymbals
+        // This makes the right side of the visualizer more active.
+        const dataLimit = Math.floor(data.length * 0.75);
+        const sliceWidth = bgCanvas.width * 1.0 / dataLimit;
 
         const t = Date.now() / 2000;
 
         bgCtx.moveTo(0, basePath);
 
-        for (let i = 0; i < data.length / 4; i++) {
+        for (let i = 0; i < dataLimit; i++) {
             // V is 0..1
             const v = data[i] / 255.0;
 
