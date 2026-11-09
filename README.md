@@ -4,8 +4,11 @@ SA Listen is an AI-powered real-time vocal analysis tool designed to help singer
 
 ## Key Features
 
-- **Real-Time Pitch Detection**: Uses autocorrelation-based pitch detection to track vocal input with low latency.
+- **Real-Time Pitch Detection**: Uses the McLeod Pitch Method (normalized autocorrelation with sub-sample interpolation) to track vocal input from ~50 Hz to 1 kHz with low latency. Comparison is octave-independent, so any voice type can sing along.
 - **Reference Comparison**: Compares live singing against a reference track's key and melody.
+- **Karaoke Mode**: Paste a YouTube link (or use any uploaded song) and SA Listen removes the vocals with Demucs. You sing over the instrumental while the original singer plays as a quiet, adjustable **guide vocal**, and that isolated vocal becomes the pitch target, so feedback follows the real melody (with "Rest" between lines). Results are cached, so a song you practise again loads instantly.
+- **Practice Tools for Beginners**: A–B looping, slow-down (0.5×–0.9×, key unchanged), guide-vocal fader, and a session report.
+- **Session Takes**: Records your raw mic (no browser noise suppression or echo gating), optionally mixed with the backing track, and saves a WAV you can replay or download.
 - **AI Audio Splitting**: Integrates `demucs` (Hybrid Transformer Demucs) to separate vocals, drums, bass, and piano from any song.
 - **Visual Feedback**:
   - Live frequency graph (Reference vs. User)
@@ -39,17 +42,41 @@ The system uses a hybrid architecture:
 
 2. **Backend Setup**:
    ```bash
-   cd backend
-   pip install -r requirements.txt
+   python -m venv .venv
+   .venv\Scripts\activate        # Windows  (macOS/Linux: source .venv/bin/activate)
+   pip install -r backend/requirements.txt
    ```
-   *Note: First run of the splitter will download the ~2GB Demucs AI model.*
+   *Note: First run of the splitter will download the ~2GB Demucs AI model. A CUDA GPU is used automatically if PyTorch can see one.*
 
 3. **Run the Application**:
    ```bash
-   # From the project root
+   # From the project root (or from backend/ — paths are resolved either way)
    python backend/main.py
    ```
    Access the app at `http://127.0.0.1:8000`.
+
+   For auto-reload during development: `uvicorn main:app --reload --app-dir backend`
+
+### Configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SA_LISTEN_STEM_TTL_HOURS` | `0` (keep) | Delete separated stems in `backend/static/` older than this many hours. Each split writes five full-length WAVs, so set this on long-running servers. |
+| `SA_LISTEN_MAX_SONG_MINUTES` | `10` | Longest YouTube video Karaoke Mode will accept. |
+
+Karaoke tracks are cached in `backend/static/karaoke/` (about 10 MB per song). Delete folders there to free space.
+
+> **Note on YouTube:** Karaoke Mode downloads audio with [yt-dlp](https://github.com/yt-dlp/yt-dlp) for personal practice. Respect YouTube's Terms of Service and copyright. Don't redistribute separated tracks, and don't commit them to this repo. If downloads start failing, update yt-dlp first (`pip install -U yt-dlp`), since YouTube changes often.
+
+**Tip for singers:** use headphones. Leave "I'm wearing headphones" ticked so the mic is recorded raw. Untick it on speakers to turn on echo cancellation and lower the music while you sing.
+
+### Tests
+
+Pitch-detection unit tests run in Node or the browser:
+```bash
+node sa-listen-ui/test/quick_test.js
+```
+(or open `sa-listen-ui/test/quick_test.html`).
 
 ## License
 
@@ -73,7 +100,6 @@ See the [LICENSE](LICENSE) file for the full text.
 - `librosa` (Audio analysis)
 - `demucs` (Source separation)
 - `FastAPI` (Backend framework)
-- `music-tempo` (Frontend tempo estimation)
 
 
 ## Crazy Ideas Welcome 

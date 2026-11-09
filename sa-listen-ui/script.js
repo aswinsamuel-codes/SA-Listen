@@ -17,6 +17,11 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Backend location. When the page is served by the FastAPI app, use the
+    // same origin (works on any host/port); fall back to the default dev
+    // server when the HTML is opened straight from disk.
+    const API_BASE = window.location.protocol.startsWith('http') ? '' : 'http://127.0.0.1:8000';
+
     // Core upload + reference audio elements
     const audioUpload = document.getElementById('audioUpload');
     const audioPlayer = document.getElementById('audioPlayer');
@@ -29,13 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const chordValueEl = document.getElementById('chordValue');
     const songAnalysisSection = document.getElementById('songAnalysis');
 
-    // Spotify metadata elements (playback & features, no audio analysis)
-    const spotifyTrackInput = document.getElementById('spotifyTrackInput');
-    const loadSpotifyBtn = document.getElementById('loadSpotifyBtn');
-    const spotifyPlayer = document.getElementById('spotifyPlayer');
-    // REMOVED: Metadata elements (title, artist, cover, etc) as requested
-    // REMOVED: Metadata elements (title, artist, cover, etc) as requested
-    const clearSpotifyBtn = document.getElementById('clearSpotifyBtn');
     const tempoSummaryEl = document.getElementById('tempoSummary');
     const chordSummaryEl = document.getElementById('chordSummary');
     const removeReferenceBtn = document.getElementById('removeReferenceBtn');
@@ -79,24 +77,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const startSingingBtn = document.getElementById('startSingingBtn');
     const stopSingingBtn = document.getElementById('stopSingingBtn');
 
-    // Target pitch in Hz (Concert A). You could later derive this
-    // from the uploaded reference track.
-    const TARGET_FREQUENCY = 440;
-
-    // Reference track volume (kept for future tweaks if needed).
-    // Currently we do not change the volume automatically when the
-    // mic is active so that the backing track stays clearly audible.
+    // Reference volume before singing started (restored on Stop when the
+    // track was turned down for speaker use).
     let originalRefVolume = audioPlayer ? audioPlayer.volume : 1;
 
     // Simple state flags
     let hasReferenceTrack = false;
     let isListening = false;
-    let wasAudioPlayingWhenStopped = false; // remembers if reference audio was playing when user hit Stop
-
-    // Spotify state (metadata only)
-    let currentSpotifyTrackId = null;
-    let hasSpotifyTrack = false;
-    let spotifyReferenceFrequency = null; // derived from Spotify key (metadata only)
+    let isStartingMic = false; // true while waiting for the mic permission prompt
+    let referenceObjectUrl = null;
+    let sessionObjectUrl = null;
 
     // Last detected pitch (Hz) for simple smoothing of the display
     let lastPitch = null;
@@ -124,6 +114,26 @@ document.addEventListener('DOMContentLoaded', () => {
     let referenceTimeDomainData = null;
     let referenceSource = null;
 
+    // Mic source + recording bus (mic and, optionally, the backing track)
+    let micSource = null;
+    let recordDest = null;
+    let backingRecordGain = null;
+
+    // Karaoke mode: audioPlayer plays the instrumental, guidePlayer plays
+    // the separated original vocal in sync. The guide vocal is also the
+    // pitch target, which is far cleaner than detecting pitch in a full mix.
+    const guidePlayer = document.getElementById('guidePlayer');
+    let isKaraokeMode = false;
+    let guideLevel = 0.35;
+    let guideSource = null;
+    let guideAnalyser = null;
+    let guideGain = null;
+    let guideTimeDomainData = null;
+    let currentReferenceFile = null; // the uploaded File, for "make karaoke from this track"
+
+    const headphonesToggle = document.getElementById('headphonesToggle');
+    const mixBackingToggle = document.getElementById('mixBackingToggle');
+
     // Dynamic chord timeline from backend
     // Format: [{ time: 1.2, chord: 'C Maj' }, ...]
     let currentChordSegments = [];
@@ -144,6 +154,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn('Unable to resume AudioContext on play:', e);
                 }
             }
+        });
+    }
+
+    // --- Keep the guide vocal locked to the instrumental ---
+    function syncGuide(force) {
+        if (!isKaraokeMode || !guidePlayer || !guidePlayer.src) return;
+        if (guidePlayer.playbackRate !== audioPlayer.playbackRate) {
+            guidePlayer.playbackRate = audioPlayer.playbackRate;
+        }
+        if (force || Math.abs(guidePlayer.currentTime - audioPlayer.currentTime) > 0.12) {
+            guidePlayer.currentTime = audioPlayer.currentTime;
+        }
+    }
+
+    if (audioPlayer && guidePlayer) {
+        audioPlayer.addEventListener('play', () => {
+            if (!isKaraokeMode) return;
+            syncGuide(true);
+            guidePlayer.play().catch(() => { /* will retry on next play */ });
+        });
+        audioPlayer.addEventListener('pause', () => guidePlayer.pause());
+        audioPlayer.addEventListener('ended', () => guidePlayer.pause());
+        audioPlayer.addEventListener('seeked', () => syncGuide(true));
+        audioPlayer.addEventListener('ratechange', () => syncGuide(false));
+        audioPlayer.addEventListener('timeupdate', () => {
+            if (!audioPlayer.paused) syncGuide(false);
         });
     }
 
@@ -221,18 +257,51 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Practice Tools: speed + guide vocal level ---
+    const speedSelect = document.getElementById('speedSelect');
+    const guideVolumeRow = document.getElementById('guideVolumeRow');
+    const guideVolumeInput = document.getElementById('guideVolume');
+    const guideVolumeValue = document.getElementById('guideVolumeValue');
+
+    if (speedSelect && audioPlayer) {
+        speedSelect.addEventListener('change', () => {
+            const rate = parseFloat(speedSelect.value) || 1;
+            // Browsers keep the key when slowing down (preservesPitch is on by default).
+            audioPlayer.defaultPlaybackRate = rate; // survives loading a new track
+            audioPlayer.playbackRate = rate;
+        });
+    }
+
+    function applyGuideLevel() {
+        if (guideGain) {
+            guideGain.gain.value = guideLevel;
+        } else if (guidePlayer) {
+            guidePlayer.volume = guideLevel; // before the Web Audio graph exists
+        }
+    }
+
+    if (guideVolumeInput) {
+        guideVolumeInput.addEventListener('input', () => {
+            guideLevel = Number(guideVolumeInput.value) / 100;
+            if (guideVolumeValue) guideVolumeValue.textContent = `${guideVolumeInput.value}%`;
+            applyGuideLevel();
+        });
+    }
+    applyGuideLevel();
+
     // Handle file selection via input
     audioUpload.addEventListener('change', handleFileSelect);
 
-    // Live singing controls
-    if (startSingingBtn) {
-        startSingingBtn.addEventListener('click', () => {
-            // If already listening, treat as toggle-off? No, we have a separate Stop button.
-            // But let's prevent double-start.
-            if (isListening) return;
-            startMicrophone();
-        });
-    }
+    // Live singing controls (exactly one listener each; a second listener
+    // used to open the mic twice and leak a stream that never stopped)
+    startSingingBtn.addEventListener('click', () => {
+        if (!hasReferenceTrack) {
+            alert("Please load a reference track first.");
+            return;
+        }
+        if (isListening || isStartingMic) return;
+        startMicrophone();
+    });
 
     if (stopSingingBtn) {
         stopSingingBtn.addEventListener('click', () => {
@@ -301,17 +370,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const formData = new FormData();
                 formData.append('file', splitFile);
 
-                const response = await fetch('http://127.0.0.1:8000/split', {
+                const response = await fetch(`${API_BASE}/split`, {
                     method: 'POST',
                     body: formData
                 });
 
-                if (!response.ok) throw new Error("Split failed");
+                if (!response.ok) {
+                    let detail = '';
+                    try { detail = (await response.json()).detail || ''; } catch (_) { /* not JSON */ }
+                    throw new Error(detail || "Split failed");
+                }
 
                 const data = await response.json();
 
                 // data keys: vocals, drums, bass, piano, other
-                const baseUrl = 'http://127.0.0.1:8000';
+                const baseUrl = API_BASE;
 
                 if (stemVocals) stemVocals.src = `${baseUrl}${data.vocals}`;
                 if (stemDrums) stemDrums.src = `${baseUrl}${data.drums}`;
@@ -424,6 +497,143 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Karaoke mode (YouTube link or uploaded file -> instrumental + guide) ---
+    const karaokeForm = document.getElementById('karaokeForm');
+    const youtubeUrlInput = document.getElementById('youtubeUrlInput');
+    const makeKaraokeBtn = document.getElementById('makeKaraokeBtn');
+    const makeKaraokeFromFileBtn = document.getElementById('makeKaraokeFromFileBtn');
+    const karaokeProgress = document.getElementById('karaokeProgress');
+    const karaokeStage = document.getElementById('karaokeStage');
+    const karaokePercent = document.getElementById('karaokePercent');
+    const karaokeProgressFill = document.getElementById('karaokeProgressFill');
+    const karaokeError = document.getElementById('karaokeError');
+    const karaokeBadge = document.getElementById('karaokeBadge');
+    let karaokeBusy = false;
+
+    function setKaraokeBusy(busy) {
+        karaokeBusy = busy;
+        if (makeKaraokeBtn) makeKaraokeBtn.disabled = busy;
+        if (makeKaraokeFromFileBtn) makeKaraokeFromFileBtn.disabled = busy;
+        if (karaokeProgress) karaokeProgress.classList.toggle('hidden', !busy);
+    }
+
+    function showKaraokeError(message) {
+        if (!karaokeError) return;
+        karaokeError.textContent = message || '';
+        karaokeError.classList.toggle('hidden', !message);
+    }
+
+    function showKaraokeProgress(stage, progress) {
+        if (karaokeStage) karaokeStage.textContent = stage || 'Working…';
+        const known = typeof progress === 'number';
+        if (karaokePercent) karaokePercent.textContent = known ? `${progress}%` : '';
+        if (karaokeProgressFill) {
+            karaokeProgressFill.classList.toggle('indeterminate', !known);
+            karaokeProgressFill.style.width = known ? `${progress}%` : '';
+        }
+    }
+
+    async function runKaraokeJob(formData) {
+        if (karaokeBusy) return;
+        setKaraokeBusy(true);
+        showKaraokeError('');
+        showKaraokeProgress('Starting…', null);
+
+        try {
+            const startResp = await fetch(`${API_BASE}/karaoke`, { method: 'POST', body: formData });
+            const startData = await startResp.json().catch(() => ({}));
+            if (!startResp.ok) throw new Error(startData.detail || `Server returned ${startResp.status}`);
+
+            // Poll until the job finishes.
+            for (;;) {
+                await new Promise(r => setTimeout(r, 1500));
+                const resp = await fetch(`${API_BASE}/karaoke/${startData.job_id}`);
+                const job = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(job.detail || `Server returned ${resp.status}`);
+
+                if (job.status === 'done') {
+                    loadKaraokeTrack(job.result);
+                    if (youtubeUrlInput) youtubeUrlInput.value = '';
+                    break;
+                }
+                if (job.status === 'error') throw new Error(job.error || 'Karaoke failed.');
+                const label = job.title ? `${job.stage} · ${job.title}` : job.stage;
+                showKaraokeProgress(label, job.progress);
+            }
+        } catch (err) {
+            console.error('Karaoke failed:', err);
+            const offline = err instanceof TypeError; // fetch() network failure
+            showKaraokeError(offline
+                ? 'Could not reach the SA Listen backend. Is it running (python backend/main.py)?'
+                : err.message);
+        } finally {
+            setKaraokeBusy(false);
+        }
+    }
+
+    if (karaokeForm) {
+        karaokeForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const url = youtubeUrlInput.value.trim();
+            if (!url) return;
+            const formData = new FormData();
+            formData.append('url', url);
+            runKaraokeJob(formData);
+        });
+    }
+
+    if (makeKaraokeFromFileBtn) {
+        makeKaraokeFromFileBtn.addEventListener('click', () => {
+            if (!currentReferenceFile) return;
+            const formData = new FormData();
+            formData.append('file', currentReferenceFile);
+            runKaraokeJob(formData);
+        });
+    }
+
+    function setKaraokeMode(on) {
+        isKaraokeMode = on;
+        if (karaokeBadge) karaokeBadge.classList.toggle('hidden', !on);
+        if (guideVolumeRow) guideVolumeRow.classList.toggle('hidden', !on);
+        if (!on && guidePlayer) {
+            guidePlayer.pause();
+            guidePlayer.removeAttribute('src');
+            guidePlayer.load();
+        }
+    }
+
+    /**
+     * Load a finished karaoke job: instrumental in the main player, the
+     * separated vocal as a synced guide (and as the pitch target).
+     */
+    function loadKaraokeTrack(result) {
+        if (!result) return;
+        if (isListening) stopMicrophone();
+
+        if (referenceObjectUrl) {
+            URL.revokeObjectURL(referenceObjectUrl);
+            referenceObjectUrl = null;
+        }
+        currentReferenceFile = null;
+        hasReferenceTrack = true;
+        setKaraokeMode(true);
+
+        audioPlayer.src = `${API_BASE}${result.instrumental}`;
+        audioPlayer.load();
+        guidePlayer.src = `${API_BASE}${result.vocals}`;
+        guidePlayer.load();
+        applyGuideLevel();
+
+        fileNameDisplay.textContent = result.title || 'Karaoke track';
+        fileNameDisplay.style.color = '#FFFFFF';
+        audioPreviewContainer.classList.remove('hidden');
+        if (makeKaraokeFromFileBtn) makeKaraokeFromFileBtn.classList.add('hidden');
+
+        applyAnalysis(result);
+        resetPitchPanel();
+        unlockSessionVisuals();
+    }
+
     function highlight() {
         uploadArea.style.borderColor = 'rgba(255,255,255,0.8)';
     }
@@ -449,49 +659,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Extract a Spotify track ID from either a raw ID or a full
-     * Spotify URL. Returns null if the input does not look valid.
-     */
-    function extractSpotifyTrackId(input) {
-        if (!input) return null;
-
-        // If it already looks like an ID (22-character base62), use it.
-        const plainIdMatch = /^[A-Za-z0-9]{10,}$/u;
-        if (plainIdMatch.test(input) && !input.includes('spotify.com')) {
-            return input;
-        }
-
-        try {
-            const url = new URL(input);
-            // Handle URLs like https://open.spotify.com/track/{id}
-            const parts = url.pathname.split('/').filter(Boolean);
-            const trackIndex = parts.indexOf('track');
-            if (trackIndex !== -1 && parts[trackIndex + 1]) {
-                return parts[trackIndex + 1].split('?')[0];
-            }
-        } catch (e) {
-            // Not a URL; fall through
-        }
-
-        return null;
-    }
-
-    /**
      * Process the uploaded audio file: update UI, preview player, and
      * unlock the live singing controls.
      */
     function processFile(file) {
         if (!file) return;
+        if (isListening) stopMicrophone();
 
         hasReferenceTrack = true;
+        currentReferenceFile = file;
+        setKaraokeMode(false);
+        if (makeKaraokeFromFileBtn) makeKaraokeFromFileBtn.classList.remove('hidden');
 
         // Update file name display
         fileNameDisplay.textContent = file.name;
         fileNameDisplay.style.color = '#FFFFFF';
 
         // Create object URL for the audio file and hook up the player
-        const objectUrl = URL.createObjectURL(file);
-        audioPlayer.src = objectUrl;
+        if (referenceObjectUrl) URL.revokeObjectURL(referenceObjectUrl);
+        referenceObjectUrl = URL.createObjectURL(file);
+        audioPlayer.src = referenceObjectUrl;
         audioPlayer.load();
         audioPreviewContainer.classList.remove('hidden');
 
@@ -513,7 +700,9 @@ document.addEventListener('DOMContentLoaded', () => {
      * Reset the pitch panel to its initial waiting state.
      */
     function resetPitchPanel() {
-        pitchTargetEl.textContent = `${TARGET_FREQUENCY} Hz`;
+        pitchTargetEl.textContent = '—';
+        const targetNoteEl = pitchTargetEl.parentElement.querySelector('.pitch-note');
+        if (targetNoteEl) targetNoteEl.textContent = 'From the song';
         pitchUserEl.textContent = '—';
         pitchUserNoteEl.textContent = 'Waiting for input';
 
@@ -548,20 +737,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        isStartingMic = true;
+        const onHeadphones = headphonesToggle ? headphonesToggle.checked : true;
         try {
-            // Ask the user for microphone permission
+            // Singing needs the raw mic: browser noise suppression treats
+            // sustained notes as noise and AGC pumps the level, which made
+            // takes sound choppy/"buffering". Echo cancellation is only
+            // useful on speakers (it also gates the voice while music plays).
             mediaStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
+                    echoCancellation: !onHeadphones,
+                    noiseSuppression: false,
+                    autoGainControl: false,
                     channelCount: 1
                 }
             });
 
-            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-            if (!audioContext) {
-                audioContext = new AudioContextClass();
-            }
+            ensureAudioContext();
 
             // Some browsers start AudioContext in a suspended state
             // and require an explicit resume() inside a user gesture.
@@ -569,24 +761,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 await audioContext.resume();
             }
 
-            const source = audioContext.createMediaStreamSource(mediaStream);
+            micSource = audioContext.createMediaStreamSource(mediaStream);
             analyser = audioContext.createAnalyser();
             analyser.fftSize = 2048;
+            timeDomainData = new Float32Array(analyser.fftSize);
 
-            const bufferLength = analyser.fftSize;
-            timeDomainData = new Float32Array(bufferLength);
+            // The mic goes to the analyser and the recording bus only, never
+            // to audioContext.destination, so it is not played back through
+            // the speakers.
+            micSource.connect(analyser);
 
-            // IMPORTANT: For the microphone we only connect the
-            // MediaStreamSource to an AnalyserNode. We do NOT route
-            // this stream to audioContext.destination so the mic audio
-            // is never played through the speakers and is used solely
-            // for analysis.
-            source.connect(analyser);
-
-            // Also connect the reference <audio> element into this
-            // same AudioContext via its own AnalyserNode so we can
-            // estimate the reference track's fundamental frequency.
+            // Route the players through the same AudioContext so their pitch
+            // can be analysed and the backing track can be recorded.
             setupReferenceAnalyser();
+            setupGuideGraph();
 
             isListening = true;
             pitchUserNoteEl.textContent = 'Listening...';
@@ -596,42 +784,27 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reset session score
             sessionScore = { total: 0, match: 0, near: 0, miss: 0 };
 
-            // --- SESSION RECORDING START ---
-            if (recordingPreview) recordingPreview.style.display = 'none'; // Hide previous
-            recordedChunks = [];
+            startSessionRecording();
 
-            try {
-                mediaRecorder = new MediaRecorder(mediaStream);
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) recordedChunks.push(event.data);
-                };
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-                    const audioURL = URL.createObjectURL(blob);
-                    if (sessionAudio) sessionAudio.src = audioURL;
-                    if (downloadSessionBtn) {
-                        downloadSessionBtn.href = audioURL;
-                        // Beautiful timestamped filename
-                        const dateStr = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-                        downloadSessionBtn.download = `SA-Listen-Session-${dateStr}.webm`;
-                    }
-                    if (recordingPreview) recordingPreview.style.display = 'block';
-                };
-                mediaRecorder.start();
-            } catch (e) {
-                console.warn("MediaRecorder failed:", e);
+            if (audioPlayer) {
+                // On speakers, turn the track down so it does not swamp the
+                // mic. With headphones there is no bleed, so leave it alone.
+                originalRefVolume = audioPlayer.volume;
+                if (!onHeadphones) audioPlayer.volume = Math.max(0, originalRefVolume * 0.5);
+
+                // Start (or resume) the song so the learner can just sing.
+                if (audioPlayer.paused) {
+                    if (audioPlayer.ended) audioPlayer.currentTime = 0;
+                    audioPlayer.play().catch(() => { /* blocked by browser */ });
+                }
             }
-            // -------------------------------
 
-            /*
-            pitchUserNoteEl.textContent = 'Listening a0 b7 a0Stay close to your mic';
-
-            // Kick off the animation loop that continuously reads microphone
-            // data, runs pitch detection, and updates the UI.
-            */ updatePitchLoop();
+            updatePitchLoop();
         } catch (err) {
             console.error('Error accessing microphone:', err);
             alert('Unable to access microphone. Please check your permissions.');
+        } finally {
+            isStartingMic = false;
         }
     }
 
@@ -656,7 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('file', file);
 
             // Call the python backend
-            const response = await fetch('http://127.0.0.1:8000/analyze', {
+            const response = await fetch(`${API_BASE}/analyze`, {
                 method: 'POST',
                 body: formData
             });
@@ -667,29 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`Server returned ${response.status}`);
             }
 
-            const data = await response.json();
-
-            // Update UI with backend results
-            const tempoText = data.tempo ? `${data.tempo} BPM` : '--';
-            const chordText = data.key || '--'; // Using 'key' as the main chord/key info
-
-            // Store segments
-            if (data.chords && Array.isArray(data.chords)) {
-                currentChordSegments = data.chords;
-            } else {
-                currentChordSegments = [];
-            }
-
-            if (tempoValueEl) tempoValueEl.textContent = tempoText;
-            if (chordValueEl) chordValueEl.textContent = chordText;
-
-            if (tempoSummaryEl) tempoSummaryEl.textContent = tempoText;
-            if (chordSummaryEl) chordSummaryEl.textContent = chordText;
-
-            if (songAnalysisSection) {
-                songAnalysisSection.style.opacity = '1';
-            }
-
+            applyAnalysis(await response.json());
         } catch (err) {
             console.error('Error analyzing reference audio with backend:', err);
             // Fallback UI update
@@ -700,85 +851,127 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /** Show tempo / key / chord timeline returned by /analyze or /karaoke. */
+    function applyAnalysis(data) {
+        const tempoText = data && data.tempo ? `${data.tempo} BPM` : '--';
+        const chordText = (data && data.key) || '--';
+        currentChordSegments = data && Array.isArray(data.chords) ? data.chords : [];
 
+        if (tempoValueEl) tempoValueEl.textContent = tempoText;
+        if (chordValueEl) chordValueEl.textContent = chordText;
+        if (tempoSummaryEl) tempoSummaryEl.textContent = tempoText;
+        if (chordSummaryEl) chordSummaryEl.textContent = chordText;
+        if (songAnalysisSection) songAnalysisSection.style.opacity = '1';
+    }
+
+    function ensureAudioContext() {
+        if (!audioContext) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            audioContext = new AudioContextClass();
+        }
+        return audioContext;
+    }
 
     /**
-     * Load metadata for a Spotify track (tempo, key, time signature,
-     * basic details) and update the left panel and bottom summary.
-     *
-     * IMPORTANT: This uses the Spotify Web API only for metadata.
-     * The actual audio playback is handled by the Spotify embed
-     * iframe and is NEVER passed into the Web Audio analysis
-     * pipeline, keeping analysis restricted to user-uploaded
-     * reference files only.
+     * Record a "take": the raw mic, plus the backing track if the user
+     * wants it mixed in. Saved as WAV so it has a real duration, seeks
+     * properly and opens in any player or DAW.
      */
-    async function loadSpotifyMetadataAndEmbed(trackId) {
-        if (!trackId || !spotifyPlayer) return;
-
-        currentSpotifyTrackId = trackId;
-        hasSpotifyTrack = true;
-
-        if (clearSpotifyBtn) clearSpotifyBtn.style.display = 'inline-block';
-
-        // Update the embed player to this track for playback only.
-        spotifyPlayer.src = `https://open.spotify.com/embed/track/${encodeURIComponent(trackId)}`;
-
-        // NOTE: You must supply a valid Spotify Web API access
-        // token below. For security reasons, this demo expects you
-        // to inject a token via environment or separate script.
-        const SPOTIFY_ACCESS_TOKEN = window.SPOTIFY_ACCESS_TOKEN || '';
-
-        // Even if no token, we allow the embed to work, but warn the user.
-        if (!SPOTIFY_ACCESS_TOKEN) {
-            console.warn('No Spotify access token provided. Only the embed player will work.');
-            alert("Spotify Sync Unavailable:\n\nTo sync the Graph and Tempo, you must provide a valid 'Spotify Access Token' in script.js (line ~443).\n\nWithout this token, the app cannot fetch the song's Key, so the pitch feedback will not match the song.");
-            return;
-        }
-
-        const headers = {
-            Authorization: `Bearer ${SPOTIFY_ACCESS_TOKEN}`
-        };
+    function startSessionRecording() {
+        if (recordingPreview) recordingPreview.style.display = 'none'; // Hide previous
+        recordedChunks = [];
+        if (typeof MediaRecorder === 'undefined') return;
 
         try {
-            // We fetch features for internal logic (graph fallback).
-            // Fetch audio features (tempo, key, time signature)
-            const featuresResp = await fetch(`https://api.spotify.com/v1/audio-features/${encodeURIComponent(trackId)}`, { headers });
-            if (!featuresResp.ok) throw new Error('Failed to fetch audio features');
-            const features = await featuresResp.json();
+            recordDest = audioContext.createMediaStreamDestination();
+            micSource.connect(recordDest);
 
-            // Tempo in BPM (only for summary)
-            let tempoDisplay = '--';
-            if (features.tempo && isFinite(features.tempo)) {
-                tempoDisplay = `${features.tempo.toFixed(1)} BPM`;
+            const mixBacking = mixBackingToggle ? mixBackingToggle.checked : true;
+            if (mixBacking && referenceSource) {
+                backingRecordGain = audioContext.createGain();
+                backingRecordGain.gain.value = 0.6; // keep the voice on top
+                referenceSource.connect(backingRecordGain);
+                backingRecordGain.connect(recordDest);
             }
 
-            if (tempoSummaryEl) {
-                tempoSummaryEl.textContent = tempoDisplay;
-            }
-
-            // Musical key (Spotify returns 0–11, where 0 = C)
-            const keyNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
-            spotifyReferenceFrequency = null;
-            if (typeof features.key === 'number' && features.key >= 0 && features.key < keyNames.length) {
-                const keyIndex = features.key;
-
-                // Derive a mid-range reference frequency for the
-                // song key's tonic (e.g., C4–B4). This uses only
-                // metadata (key index) and does NOT analyze audio.
-                const midiForC4 = 60; // C4
-                const midi = midiForC4 + keyIndex; // tonic in 4th octave
-                const semitonesFromA4 = midi - 69; // A4 = 69
-                spotifyReferenceFrequency = 440 * Math.pow(2, semitonesFromA4 / 12);
-            }
-
-            // Enable singing controls when a Spotify track is
-            // connected, even if no local reference file exists.
-            if (startSingingBtn) startSingingBtn.disabled = false;
-            if (stopSingingBtn) stopSingingBtn.disabled = false;
-        } catch (err) {
-            console.error('Error loading Spotify metadata:', err);
+            mediaRecorder = new MediaRecorder(recordDest.stream);
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) recordedChunks.push(event.data);
+            };
+            mediaRecorder.onstop = () => finishSessionRecording(mediaRecorder.mimeType);
+            // Timeslice so data is flushed regularly rather than all at the end.
+            mediaRecorder.start(1000);
+        } catch (e) {
+            console.warn("MediaRecorder failed:", e);
+            mediaRecorder = null;
         }
+    }
+
+    async function finishSessionRecording(mimeType) {
+        if (backingRecordGain) {
+            backingRecordGain.disconnect();
+            backingRecordGain = null;
+        }
+        recordDest = null;
+        if (recordedChunks.length === 0) return;
+
+        const compressed = new Blob(recordedChunks, { type: mimeType || 'audio/webm' });
+        let take = compressed;
+        let extension = (mimeType || '').includes('mp4') ? 'm4a' : 'webm';
+        try {
+            const decoded = await audioContext.decodeAudioData(await compressed.arrayBuffer());
+            take = encodeWav(decoded);
+            extension = 'wav';
+        } catch (e) {
+            console.warn('Could not convert take to WAV, keeping original format:', e);
+        }
+
+        if (sessionObjectUrl) URL.revokeObjectURL(sessionObjectUrl);
+        sessionObjectUrl = URL.createObjectURL(take);
+        if (sessionAudio) sessionAudio.src = sessionObjectUrl;
+        if (downloadSessionBtn) {
+            downloadSessionBtn.href = sessionObjectUrl;
+            const dateStr = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            downloadSessionBtn.download = `SA-Listen-Take-${dateStr}.${extension}`;
+        }
+        if (recordingPreview) recordingPreview.style.display = 'block';
+    }
+
+    /** 16-bit PCM WAV encoder for an AudioBuffer (mono or stereo). */
+    function encodeWav(audioBuffer) {
+        const channels = Math.min(2, audioBuffer.numberOfChannels);
+        const sampleRate = audioBuffer.sampleRate;
+        const frames = audioBuffer.length;
+        const dataSize = frames * channels * 2;
+        const buffer = new ArrayBuffer(44 + dataSize);
+        const view = new DataView(buffer);
+        const writeString = (offset, s) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); };
+
+        writeString(0, 'RIFF');
+        view.setUint32(4, 36 + dataSize, true);
+        writeString(8, 'WAVE');
+        writeString(12, 'fmt ');
+        view.setUint32(16, 16, true);          // fmt chunk size
+        view.setUint16(20, 1, true);           // PCM
+        view.setUint16(22, channels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * channels * 2, true);
+        view.setUint16(32, channels * 2, true);
+        view.setUint16(34, 16, true);          // bits per sample
+        writeString(36, 'data');
+        view.setUint32(40, dataSize, true);
+
+        const data = [];
+        for (let c = 0; c < channels; c++) data.push(audioBuffer.getChannelData(c));
+        let offset = 44;
+        for (let i = 0; i < frames; i++) {
+            for (let c = 0; c < channels; c++) {
+                const s = Math.max(-1, Math.min(1, data[c][i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                offset += 2;
+            }
+        }
+        return new Blob([buffer], { type: 'audio/wav' });
     }
 
     /**
@@ -793,8 +986,15 @@ document.addEventListener('DOMContentLoaded', () => {
             rafId = null;
         }
 
-        if (analyser && audioContext) {
-            analyser.disconnect();
+        // Stop the recorder first so the last chunk still contains audio.
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+
+        if (analyser) analyser.disconnect();
+        if (micSource) {
+            micSource.disconnect();
+            micSource = null;
         }
 
         if (mediaStream) {
@@ -802,26 +1002,12 @@ document.addEventListener('DOMContentLoaded', () => {
             mediaStream = null;
         }
 
-        // Stop Recording
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-        }
-
-        // Pause the reference track if it was playing, and remember
-        // that state so we can resume playback when the user starts
-        // singing again.
-        if (audioPlayer) {
-            wasAudioPlayingWhenStopped = !audioPlayer.paused && !audioPlayer.ended;
-            if (!audioPlayer.paused) {
-                audioPlayer.pause();
-            }
-        } else {
-            wasAudioPlayingWhenStopped = false;
+        // Pause the song; Start Singing resumes it from the same spot.
+        if (audioPlayer && !audioPlayer.paused) {
+            audioPlayer.pause();
         }
 
         startSingingBtn.classList.remove('btn-recording');
-
-        // Restore reference track volume
 
         // Restore reference track volume
         if (audioPlayer) {
@@ -832,10 +1018,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Keep reference, but go back to a waiting UI
         resetPitchPanel();
 
-        // Reference track volume is left unchanged; users control it
-        // AudioContext remains available so pausing/playing the
-        // track continues to work without needing to recreate nodes.
-
+        // The AudioContext stays alive so the players keep working
+        // without recreating nodes.
         generateReport();
     }
 
@@ -907,17 +1091,27 @@ document.addEventListener('DOMContentLoaded', () => {
             // microphone started before the user loaded/played audio.
             setupReferenceAnalyser();
         }
-        if (referenceAnalyser && referenceTimeDomainData && !audioPlayer.paused && !audioPlayer.ended) {
+        const trackPlaying = !audioPlayer.paused && !audioPlayer.ended;
+        if (isKaraokeMode && guideAnalyser) {
+            // Karaoke: the isolated original vocal is the target melody.
+            if (trackPlaying && !guidePlayer.paused) {
+                guideAnalyser.getFloatTimeDomainData(guideTimeDomainData);
+                referenceFrequency = detectPitch(guideTimeDomainData, audioContext.sampleRate);
+            }
+        } else if (referenceAnalyser && referenceTimeDomainData && trackPlaying) {
             referenceAnalyser.getFloatTimeDomainData(referenceTimeDomainData);
             referenceFrequency = detectPitch(referenceTimeDomainData, audioContext.sampleRate);
         }
 
-        // If there is no active reference pitch from the uploaded
-        // audio, fall back to a static reference based on the
-        // Spotify key metadata (tonic frequency). This uses only
-        // key information from the Web API, not Spotify audio.
-        if (referenceFrequency == null && spotifyReferenceFrequency != null) {
-            referenceFrequency = spotifyReferenceFrequency;
+        // Always show the target note, so a learner can see (and hear) what
+        // to sing before they start.
+        const targetNoteEl = pitchTargetEl.parentElement.querySelector('.pitch-note');
+        if (referenceFrequency) {
+            pitchTargetEl.textContent = `${referenceFrequency.toFixed(1)} Hz`;
+            if (targetNoteEl) targetNoteEl.textContent = frequencyToNoteName(referenceFrequency) || '';
+        } else {
+            pitchTargetEl.textContent = '—';
+            if (targetNoteEl) targetNoteEl.textContent = trackPlaying ? 'Rest (no melody)' : 'Play the song';
         }
 
         if (!rawPitch) {
@@ -948,49 +1142,37 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show detected pitch in Hz
             const rounded = pitch.toFixed(1);
             pitchUserEl.textContent = `${rounded} Hz`;
-            pitchUserNoteEl.textContent = 'Live microphone';
-
-            // Compare against target frequency in cents
-            // Update Target Display with dynamic reference pitch if available
-            if (referenceFrequency) {
-                pitchTargetEl.textContent = `${referenceFrequency.toFixed(1)} Hz`;
-                const refNote = frequencyToNoteName(referenceFrequency);
-                if (refNote) {
-                    // Update the note label below the target Hz if it exists
-                    const targetNoteEl = pitchTargetEl.parentElement.querySelector('.pitch-note');
-                    if (targetNoteEl) targetNoteEl.textContent = refNote;
-                }
-            } else {
-                pitchTargetEl.textContent = `${TARGET_FREQUENCY} Hz`;
-            }
-
-            // Compare against dynamic reference frequency if available, otherwise static target
-            const currentTarget = referenceFrequency || TARGET_FREQUENCY;
-            const centsDiff = frequencyToCentsOffset(pitch, currentTarget);
-            const absCents = Math.abs(centsDiff);
+            pitchUserNoteEl.textContent = frequencyToNoteName(pitch) || 'Live microphone';
 
             pitchStatusEl.classList.remove('status-match', 'status-near', 'status-waiting');
 
-            if (absCents <= 20) {
-                pitchStatusEl.textContent = 'Match';
-                pitchStatusEl.classList.add('status-match');
-                sessionScore.match++;
-            } else if (absCents <= 50) {
-                // "Near" - show direction
-                const direction = centsDiff > 0 ? 'High' : 'Low';
-                pitchStatusEl.textContent = `Near (${direction})`;
-                pitchStatusEl.classList.add('status-near');
-                sessionScore.near++;
+            if (referenceFrequency == null) {
+                // Nothing to match right now (instrumental break or paused
+                // track). Show the note but do not score the frame.
+                pitchStatusEl.textContent = trackPlaying ? 'Rest' : 'Free singing';
+                pitchStatusEl.classList.add('status-waiting');
             } else {
-                // "Off" - show direction
-                const direction = centsDiff > 0 ? 'Too High' : 'Too Low';
-                pitchStatusEl.textContent = direction;
-                // Off uses the default pill styling (no extra class)
-                sessionScore.miss++;
-            }
-            sessionScore.total++;
+                // Octaves are folded out so a singer an octave above/below the
+                // reference still matches (references also jump octaves).
+                const centsDiff = pitchClassCentsOffset(pitch, referenceFrequency);
+                const absCents = Math.abs(centsDiff);
 
-            pitchCardEl.classList.add('is-active');
+                if (absCents <= 20) {
+                    pitchStatusEl.textContent = 'Match';
+                    pitchStatusEl.classList.add('status-match');
+                    sessionScore.match++;
+                } else if (absCents <= 50) {
+                    const direction = centsDiff > 0 ? 'High' : 'Low';
+                    pitchStatusEl.textContent = `Near (${direction})`;
+                    pitchStatusEl.classList.add('status-near');
+                    sessionScore.near++;
+                } else {
+                    // "Off" uses the default pill styling (no extra class)
+                    pitchStatusEl.textContent = centsDiff > 0 ? 'Too High' : 'Too Low';
+                    sessionScore.miss++;
+                }
+                sessionScore.total++;
+            }
 
             pitchCardEl.classList.add('is-active');
 
@@ -999,41 +1181,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         rafId = requestAnimationFrame(updatePitchLoop);
-    }
-
-    /**
-     * Start Singing button handler
-     */
-    startSingingBtn.addEventListener('click', () => {
-        if (!hasReferenceTrack && !hasSpotifyTrack) {
-            alert("Please load a reference track or Spotify track first.");
-            return;
-        }
-
-        if (isListening) return; // already running
-
-        startMicrophone();
-
-        // Duck the reference volume to reduce bleed
-        if (audioPlayer) {
-            originalRefVolume = audioPlayer.volume;
-            audioPlayer.volume = Math.max(0, originalRefVolume * 0.3);
-        }
-
-        // If the reference audio was playing when the user last
-        // pressed Stop, resume it from the same position.
-        if (audioPlayer && wasAudioPlayingWhenStopped && audioPlayer.paused) {
-            audioPlayer.play().catch(() => {
-                // Ignore play errors (e.g., if browser blocks it)
-            });
-        }
-    });
-
-    if (stopSingingBtn) {
-        stopSingingBtn.addEventListener('click', () => {
-            // Force stop regardless of state flag, just in case
-            stopMicrophone();
-        });
     }
 
     /**
@@ -1054,6 +1201,31 @@ document.addEventListener('DOMContentLoaded', () => {
             referenceTimeDomainData = new Float32Array(referenceAnalyser.fftSize);
         } catch (err) {
             console.warn("Error setting up reference analyser (possibly already connected):", err);
+        }
+    }
+
+    /**
+     * Route the guide vocal through Web Audio: an analyser (full level,
+     * used as the pitch target) and a gain node for the "Guide vocal"
+     * slider, so turning the guide down never weakens pitch detection.
+     */
+    function setupGuideGraph() {
+        if (!audioContext || !guidePlayer || guideSource) return;
+        try {
+            guideSource = audioContext.createMediaElementSource(guidePlayer);
+            guideAnalyser = audioContext.createAnalyser();
+            guideAnalyser.fftSize = 2048;
+            guideTimeDomainData = new Float32Array(guideAnalyser.fftSize);
+            guideGain = audioContext.createGain();
+
+            guideSource.connect(guideAnalyser);
+            guideSource.connect(guideGain);
+            guideGain.connect(audioContext.destination);
+
+            guidePlayer.volume = 1; // level is now controlled by guideGain
+            applyGuideLevel();
+        } catch (err) {
+            console.warn('Error setting up guide vocal graph:', err);
         }
     }
 
@@ -1118,180 +1290,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         pitchGraphCtx.stroke();
     }
-    // }); removed to extend scope
-
-    /**
-     * Autocorrelation-based pitch detection working directly in the
-     * time domain.
-     */
-    function detectPitch(timeData, sampleRate) {
-        const size = timeData.length;
-
-        // 1) Signal energy check via RMS
-        let rms = 0;
-        for (let i = 0; i < size; i++) {
-            const val = timeData[i];
-            rms += val * val;
-        }
-        rms = Math.sqrt(rms / size);
-        if (rms < 0.01) {
-            // Too quiet: likely no input or just background noise.
-            return null;
-        }
-
-        // We focus only on the lag range that can represent typical
-        // vocal fundamentals.
-        const MIN_FREQUENCY = 50;   // Hz
-        const MAX_FREQUENCY = 1000; // Hz
-
-        // lag = sampleRate / frequency
-        let minLag = Math.floor(sampleRate / MAX_FREQUENCY);
-        let maxLag = Math.floor(sampleRate / MIN_FREQUENCY);
-
-        // Keep lags within the buffer
-        minLag = Math.max(1, minLag);
-        maxLag = Math.min(size - 1, maxLag);
-
-        // Autocorrelation at lag 0 is the signal energy, used to
-        // normalize other lags.
-        let r0 = 0;
-        for (let i = 0; i < size; i++) {
-            r0 += timeData[i] * timeData[i];
-        }
-        if (r0 === 0) {
-            return null;
-        }
-
-        let bestLag = -1;
-        let bestCorrelation = 0;
-
-        // 2) Compute R(lag) for the desired lag range
-        for (let lag = minLag; lag <= maxLag; lag++) {
-            let sum = 0;
-            for (let i = 0; i < size - lag; i++) {
-                sum += timeData[i] * timeData[i + lag];
-            }
-
-            if (sum > bestCorrelation) {
-                bestCorrelation = sum;
-                bestLag = lag;
-            }
-        }
-
-        if (bestLag === -1) {
-            return null;
-        }
-
-        // Normalize the best correlation value against the zero-lag
-        // autocorrelation to ignore low-confidence results.
-        const normalizedCorrelation = bestCorrelation / r0;
-        if (normalizedCorrelation < 0.3) {
-            return null;
-        }
-
-        // 3) Convert the best lag to a frequency
-        const frequency = sampleRate / bestLag;
-
-        // 4) Clamp to a realistic vocal range
-        if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) {
-            return null;
-        }
-
-        return frequency;
-    }
-
-    /**
-     * Convert a frequency difference into cents relative to a target
-     * frequency. 1200 cents = 1 octave.
-     */
-    function frequencyToCentsOffset(freq, targetFreq) {
-        return 1200 * Math.log2(freq / targetFreq);
-    }
-
-    /**
-     * Map a frequency in Hz to a musical note name with octave
-     * (e.g. A4, C#3). This is used for displaying an approximate
-     * main chord/root for the reference track.
-     */
-    function frequencyToNoteName(freq) {
-        if (!freq || !isFinite(freq)) return null;
-
-        const A4 = 440;
-        const semitonesFromA4 = Math.round(12 * Math.log2(freq / A4));
-        const midi = 69 + semitonesFromA4; // MIDI note number for A4 is 69
-
-        if (midi < 0 || midi > 127) return null;
-
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const indexFromC = (midi - 60 + 1200) % 12; // 60 is middle C (C4)
-        const noteName = noteNames[indexFromC];
-        const octave = Math.floor(midi / 12) - 1;
-
-        return `${noteName}${octave}`;
-    }
-
-    /**
-     * Estimate the dominant note across the reference track by
-     * sampling short frames and running the same pitch detector used
-     * for the microphone. This gives an approximate main note/root
-     * that we display as the song's main chord.
-     */
-    function estimateDominantNote(channelData, sampleRate) {
-        const frameSize = 2048;
-        const hopSize = 1024;
-
-        // Analyze up to the first ~20 seconds for speed.
-        const maxSamples = Math.min(channelData.length, sampleRate * 20);
-
-        const noteCounts = Object.create(null);
-        const frame = new Float32Array(frameSize);
-
-        for (let start = 0; start + frameSize < maxSamples; start += hopSize) {
-            for (let i = 0; i < frameSize; i++) {
-                frame[i] = channelData[start + i];
-            }
-
-            const freq = detectPitch(frame, sampleRate);
-            if (!freq) continue;
-
-            const noteName = frequencyToNoteName(freq);
-            if (!noteName) continue;
-
-            noteCounts[noteName] = (noteCounts[noteName] || 0) + 1;
-        }
-
-        let bestNote = null;
-        let bestCount = 0;
-        for (const [name, count] of Object.entries(noteCounts)) {
-            if (count > bestCount) {
-                bestCount = count;
-                bestNote = name;
-            }
-        }
-
-        return bestNote;
-    }
-
-    function resetSpotifyTrack() {
-        if (spotifyPlayer) spotifyPlayer.src = '';
-        if (spotifyTrackInput) spotifyTrackInput.value = '';
-        if (clearSpotifyBtn) clearSpotifyBtn.style.display = 'none';
-
-        currentSpotifyTrackId = null;
-        hasSpotifyTrack = false;
-        spotifyReferenceFrequency = null;
-
-        // Clear summary if it came from Spotify (and no ref track)
-        if (tempoSummaryEl && !hasReferenceTrack) tempoSummaryEl.textContent = '--';
-
-        updateSingingControlsState();
-    }
 
     function removeReferenceTrack() {
+        // Never leave the mic running without a reference track.
+        if (isListening) stopMicrophone();
+
         if (audioPlayer) {
             audioPlayer.pause();
-            audioPlayer.src = '';
+            audioPlayer.removeAttribute('src');
+            audioPlayer.load();
         }
+        if (referenceObjectUrl) {
+            URL.revokeObjectURL(referenceObjectUrl);
+            referenceObjectUrl = null;
+        }
+        currentChordSegments = [];
+        currentReferenceFile = null;
+        setKaraokeMode(false);
+        if (makeKaraokeFromFileBtn) makeKaraokeFromFileBtn.classList.remove('hidden');
         if (audioUpload) audioUpload.value = '';
         if (fileNameDisplay) fileNameDisplay.textContent = 'No file selected';
 
@@ -1311,7 +1327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateSingingControlsState() {
-        const canSing = hasReferenceTrack || hasSpotifyTrack;
+        const canSing = hasReferenceTrack;
         if (startSingingBtn) startSingingBtn.disabled = !canSing;
         if (stopSingingBtn) stopSingingBtn.disabled = !canSing;
     }

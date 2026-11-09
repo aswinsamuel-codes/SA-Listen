@@ -22,12 +22,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SA Listen - AI Vocal Analysis</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Tempo analysis helper library -->
-    <script src="https://unpkg.com/music-tempo@2.0.1/dist/music-tempo.min.js"></script>
 </head>
 
 <body>
@@ -168,10 +166,38 @@
                     </button>
                 </div>
 
+                <!-- Karaoke: YouTube link -> instrumental + guide vocal -->
+                <div class="karaoke-box" id="karaokeBox">
+                    <p class="karaoke-title">🎤 Karaoke mode</p>
+                    <p class="card-subtitle">Paste a YouTube link. We take the vocals out so you can sing along,
+                        with the original singer as a quiet guide.</p>
+                    <form class="karaoke-input-row" id="karaokeForm">
+                        <input type="url" id="youtubeUrlInput" class="text-input"
+                            placeholder="https://www.youtube.com/watch?v=…" aria-label="YouTube link" required>
+                        <button type="submit" id="makeKaraokeBtn" class="btn btn-primary btn-sm">Make karaoke</button>
+                    </form>
+                    <div class="karaoke-progress hidden" id="karaokeProgress" role="status" aria-live="polite">
+                        <div class="karaoke-progress-text">
+                            <span id="karaokeStage">Starting…</span>
+                            <span id="karaokePercent"></span>
+                        </div>
+                        <div class="progress-track"><div class="progress-fill" id="karaokeProgressFill"></div></div>
+                        <p class="karaoke-hint">First time for a song takes a few minutes. After that it loads instantly.</p>
+                    </div>
+                    <p class="karaoke-error hidden" id="karaokeError" role="alert"></p>
+                </div>
+
                 <div class="audio-preview hidden" id="audioPreviewContainer">
-                    <audio id="audioPlayer" controls class="custom-audio"></audio>
-                    <button id="removeReferenceBtn" class="btn btn-ghost btn-remove" aria-label="Remove file"
-                        title="Remove reference track" style="margin-top: 8px;">Remove</button>
+                    <p class="karaoke-badge hidden" id="karaokeBadge">🎤 Karaoke track (vocals removed)</p>
+                    <audio id="audioPlayer" controls class="custom-audio" crossorigin="anonymous"></audio>
+                    <!-- Separated original vocal, kept in sync with the player above -->
+                    <audio id="guidePlayer" preload="auto" crossorigin="anonymous" hidden></audio>
+                    <div class="preview-actions">
+                        <button id="makeKaraokeFromFileBtn" class="btn btn-ghost btn-sm"
+                            title="Remove the vocals from this track">🎤 Make karaoke from this track</button>
+                        <button id="removeReferenceBtn" class="btn btn-ghost btn-remove" aria-label="Remove file"
+                            title="Remove reference track">Remove</button>
+                    </div>
                 </div>
 
                 <!-- Basic song analysis for the reference track -->
@@ -186,6 +212,21 @@
                             --:--</div>
                         <button id="setLoopEndBtn" class="btn btn-ghost btn-sm">Set End (B)</button>
                         <button id="toggleLoopBtn" class="btn btn-outline btn-sm" disabled> Enable Loop </button>
+                    </div>
+                    <div class="practice-row">
+                        <label class="practice-label" for="speedSelect">Speed</label>
+                        <select id="speedSelect" class="select-input" title="Slow the song down without changing its key">
+                            <option value="0.5">0.5×</option>
+                            <option value="0.75">0.75×</option>
+                            <option value="0.9">0.9×</option>
+                            <option value="1" selected>1× (normal)</option>
+                        </select>
+                    </div>
+                    <div class="practice-row hidden" id="guideVolumeRow">
+                        <label class="practice-label" for="guideVolume">Guide vocal</label>
+                        <input type="range" id="guideVolume" min="0" max="100" value="35"
+                            title="How loud the original singer is. Turn it down as you get confident.">
+                        <span class="practice-value" id="guideVolumeValue">35%</span>
                     </div>
                 </div>
 
@@ -248,8 +289,8 @@
                 <div class="pitch-values">
                     <div class="pitch-block">
                         <span class="pitch-label">Target</span>
-                        <span class="pitch-value" id="pitchTarget">440 Hz</span>
-                        <span class="pitch-note">Concert A</span>
+                        <span class="pitch-value" id="pitchTarget">—</span>
+                        <span class="pitch-note">From the song</span>
                     </div>
                     <div class="pitch-block">
                         <span class="pitch-label">You</span>
@@ -296,6 +337,12 @@
                         <button class="btn btn-primary btn-glow" id="startSingingBtn" type="button">Start
                             Singing</button>
                         <button class="btn btn-outline btn-glow" id="stopSingingBtn" type="button">Stop Singing</button>
+                        <label class="check-row" title="With headphones the mic is recorded raw (best quality). On speakers, echo cancellation keeps the music out of your recording.">
+                            <input type="checkbox" id="headphonesToggle" checked> I'm wearing headphones
+                        </label>
+                        <label class="check-row" title="Record the backing track together with your voice, like a real karaoke take.">
+                            <input type="checkbox" id="mixBackingToggle" checked> Mix music into my recording
+                        </label>
                     </div>
                 </div>
             </div>
@@ -348,7 +395,7 @@
                         Recording</h3>
                     <div style="display: flex; gap: 12px; align-items: center;">
                         <audio id="sessionAudio" controls style="flex: 1; height: 36px; border-radius: 18px;"></audio>
-                        <a id="downloadSessionBtn" class="btn btn-outline btn-sm" download="session.webm">⬇ Save
+                        <a id="downloadSessionBtn" class="btn btn-outline btn-sm" download="session.wav">⬇ Save
                             Take</a>
                     </div>
                 </div>
@@ -362,7 +409,8 @@
         <p><small><a href="https://github.com/aswinsamuel-codes/SA-Listen">Source Code (AGPL v3)</a></small></p>
     </footer>
 
-    <script src="script.js"></script>
+    <script src="pitch.js?v=2"></script>
+    <script src="script.js?v=2"></script>
 </body>
 
 </html>

@@ -1155,3 +1155,165 @@ body {
         display: none;
     }
 }
+
+/* --- Karaoke mode --- */
+.karaoke-box {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: var(--border-radius-md);
+    background: rgba(59, 130, 246, 0.06);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.karaoke-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.karaoke-input-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.text-input,
+.select-input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 14px;
+    border-radius: 100px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.9rem;
+}
+
+.select-input {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+}
+
+.select-input option {
+    background: var(--bg-card);
+}
+
+.text-input:focus,
+.select-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+}
+
+.btn-primary.btn-sm:disabled {
+    opacity: 0.5;
+}
+
+.karaoke-progress {
+    margin-top: 14px;
+}
+
+.karaoke-progress-text {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.progress-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0;
+    background: var(--accent-gradient);
+    transition: width 0.4s ease;
+}
+
+.progress-fill.indeterminate {
+    width: 30%;
+    animation: progress-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes progress-slide {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(340%); }
+}
+
+.karaoke-hint {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.karaoke-error {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--error);
+}
+
+.karaoke-badge {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+    margin-bottom: 8px;
+}
+
+.preview-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.practice-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 0 4px;
+}
+
+.practice-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    min-width: 84px;
+}
+
+.practice-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent-primary);
+}
+
+.practice-value {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: var(--accent-primary);
+    min-width: 40px;
+    text-align: right;
+}
+
+.check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.check-row input {
+    accent-color: var(--accent-primary);
+}

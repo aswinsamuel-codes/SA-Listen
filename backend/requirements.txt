@@ -6,5 +6,4 @@ numpy
 scipy
 soundfile
 demucs
-
-uvicorn main:app --reload
+yt-dlp

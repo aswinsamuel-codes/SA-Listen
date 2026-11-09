@@ -6,3 +6,4 @@ backend/static/*.wav
 backend/static/separated/
 .venv/
 .vscode/
+backend/static/karaoke/
