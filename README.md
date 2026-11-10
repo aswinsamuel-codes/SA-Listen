@@ -6,6 +6,11 @@ SA Listen is an AI-powered real-time vocal analysis tool designed to help singer
 
 - **Real-Time Pitch Detection**: Uses the McLeod Pitch Method (normalized autocorrelation with sub-sample interpolation) to track vocal input from ~50 Hz to 1 kHz with low latency. Comparison is octave-independent, so any voice type can sing along.
 - **Reference Comparison**: Compares live singing against a reference track's key and melody.
+- **Practice Studio (prototype, `/practice.html`)**: Built for practice between lessons with a teacher.
+  - **Teachers** create a studio, share a join code, and publish exercises recorded in their own voice (or upload a full song to have the vocals separated). For each exercise they set the Sa (tonic, with kattai) and a level that sets how strict scoring is.
+  - **Students** practise against a scrolling **swara note lane** relative to Sa, with a tanpura-style **Sa drone**, a count-in, slow-down, and **note-by-note scoring**. Octaves don't count against you, and tips name the exact swara that's flat or sharp. They send their best take to the teacher.
+  - **Teachers review** each take with the coloured note lane and the student's pitch trace, and leave **comments pinned to a moment** in the take. A dashboard shows each student's practice minutes and scores for the week.
+  - *Prototype access model:* teacher and student links contain a private token (no passwords yet). Anyone holding the link has that person's access. Data is stored in `backend/data/` (SQLite + media).
 - **Karaoke Mode**: Paste a YouTube link (or use any uploaded song) and SA Listen removes the vocals with Demucs. You sing over the instrumental while the original singer plays as a quiet, adjustable **guide vocal**, and that isolated vocal becomes the pitch target, so feedback follows the real melody (with "Rest" between lines). Results are cached, so a song you practise again loads instantly.
 - **Practice Tools for Beginners**: A–B looping, slow-down (0.5×–0.9×, key unchanged), guide-vocal fader, and a session report.
 - **Session Takes**: Records your raw mic (no browser noise suppression or echo gating), optionally mixed with the backing track, and saves a WAV you can replay or download.

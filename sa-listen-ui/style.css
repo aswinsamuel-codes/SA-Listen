@@ -1317,3 +1317,27 @@ body {
 .check-row input {
     accent-color: var(--accent-primary);
 }
+
+/* Header navigation */
+.header-nav {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+}
+
+.header-link {
+    color: #FFF;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 100px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.header-link:hover,
+.header-link[aria-current="page"] {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+}

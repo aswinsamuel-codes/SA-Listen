@@ -1,0 +1,315 @@
+<!--
+  SA Listen - AI Vocal Analysis
+  Copyright (C) 2024 Sukin S, Aswin Samuel A.
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SA Listen - Practice Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="practice.css?v=1">
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="container header-content">
+            <div class="logo-container">
+                <img src="../logo/logo.jpeg" alt="SA Listen Logo" class="logo"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                <div class="logo-fallback" style="display:none; font-weight:bold; font-size: 1.5rem; color: #fff;">SA</div>
+                <h1 class="app-name">SA Listen <span class="app-name-sub">Practice Studio</span></h1>
+            </div>
+            <nav class="header-nav">
+                <a class="header-link" href="index.html">🎤 Karaoke &amp; tools</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container main-content practice-main">
+        <p class="flash hidden" id="flash" role="alert"></p>
+
+        <!-- ============ LANDING ============ -->
+        <section id="landingView" class="view hidden">
+            <div class="landing-hero">
+                <h2>Practise between lessons, with your teacher's voice as the guide.</h2>
+                <p>Teachers record an exercise once. Students practise it every day with live swara feedback
+                    and send their best take back for review.</p>
+            </div>
+            <div class="practice-grid two">
+                <form class="card" id="createStudioForm">
+                    <div class="card-header">
+                        <div>
+                            <h2>I'm a teacher</h2>
+                            <p class="card-subtitle">Create a studio and invite your students.</p>
+                        </div>
+                    </div>
+                    <label class="field">Studio name
+                        <input class="text-input" name="name" required maxlength="80" placeholder="e.g. Raga Room">
+                    </label>
+                    <label class="field">Your name
+                        <input class="text-input" name="teacher_name" required maxlength="60" placeholder="e.g. Priya">
+                    </label>
+                    <button class="btn btn-primary full-width" type="submit">Create studio</button>
+                </form>
+
+                <form class="card" id="joinStudioForm">
+                    <div class="card-header">
+                        <div>
+                            <h2>I'm a student</h2>
+                            <p class="card-subtitle">Join with the code your teacher gave you.</p>
+                        </div>
+                    </div>
+                    <label class="field">Studio code
+                        <input class="text-input code-input" name="join_code" required maxlength="12"
+                            autocomplete="off" placeholder="ABC123">
+                    </label>
+                    <label class="field">Your name
+                        <input class="text-input" name="name" required maxlength="60" placeholder="e.g. Arun">
+                    </label>
+                    <button class="btn btn-primary full-width" type="submit">Join studio</button>
+                </form>
+            </div>
+            <div class="resume hidden" id="resumeBox">
+                <span id="resumeText"></span>
+                <a class="btn btn-ghost btn-sm" id="resumeLink" href="#">Continue</a>
+            </div>
+        </section>
+
+        <!-- ============ TEACHER ============ -->
+        <section id="teacherView" class="view hidden">
+            <div class="card studio-banner">
+                <div>
+                    <p class="eyebrow">Teacher</p>
+                    <h2 id="tStudioName">Studio</h2>
+                    <p class="card-subtitle">Bookmark this page. Its link is your private key to the studio.</p>
+                </div>
+                <div class="invite">
+                    <span class="eyebrow">Student code</span>
+                    <span class="join-code" id="tJoinCode">------</span>
+                    <button class="btn btn-secondary btn-sm" id="copyInviteBtn" type="button">Copy invite link</button>
+                </div>
+            </div>
+
+            <div class="practice-grid two">
+                <section class="card">
+                    <h2>Students</h2>
+                    <p class="card-subtitle">Practice in the last 7 days.</p>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>Student</th><th>Takes</th><th>Minutes</th><th>Avg score</th><th>Last active</th></tr>
+                            </thead>
+                            <tbody id="tStudents"></tbody>
+                        </table>
+                    </div>
+                    <p class="empty" id="tStudentsEmpty">No students yet. Share the code above.</p>
+                </section>
+
+                <form class="card" id="assignmentForm">
+                    <h2>New exercise</h2>
+                    <p class="card-subtitle">Record yourself (sargam, alankaram, a line of a song) or upload a track.</p>
+
+                    <label class="field">Title
+                        <input class="text-input" name="title" required maxlength="120" placeholder="e.g. Sarali varisai 1">
+                    </label>
+                    <label class="field">Notes for students
+                        <textarea class="text-input textarea" name="notes" maxlength="2000" rows="2"
+                            placeholder="What to focus on"></textarea>
+                    </label>
+
+                    <div class="field-row">
+                        <label class="field grow">Sa (tonic) of this exercise
+                            <select class="select-input" id="saSelect" name="sa"></select>
+                        </label>
+                        <button class="btn btn-ghost btn-sm" type="button" id="detectSaBtn"
+                            title="Sing or play your Sa steadily for 3 seconds">🎙 Detect</button>
+                    </div>
+                    <label class="field">Level
+                        <select class="select-input" name="level">
+                            <option value="beginner">Beginner (±50¢ counts as correct)</option>
+                            <option value="intermediate">Intermediate (±30¢)</option>
+                            <option value="advanced">Advanced (±18¢)</option>
+                        </select>
+                    </label>
+
+                    <div class="source-tabs" role="tablist">
+                        <button type="button" class="tab active" data-source="record" role="tab">Record now</button>
+                        <button type="button" class="tab" data-source="upload" role="tab">Upload file</button>
+                    </div>
+                    <div class="source-panel" id="recordPanel">
+                        <div class="field-row">
+                            <button class="btn btn-secondary btn-sm" type="button" id="recordGuideBtn">● Record</button>
+                            <label class="check-row"><input type="checkbox" id="recordDroneToggle"> Sa drone while
+                                recording (headphones)</label>
+                        </div>
+                        <audio id="recordPreview" controls class="hidden full-width"></audio>
+                    </div>
+                    <div class="source-panel hidden" id="uploadPanel">
+                        <input type="file" id="guideFile" accept="audio/*" class="file-input">
+                        <label class="check-row"><input type="checkbox" id="fullSongToggle"> This is a full song.
+                            Separate the vocals (takes a few minutes)</label>
+                    </div>
+
+                    <button class="btn btn-primary full-width" type="submit" id="createAssignmentBtn">Publish exercise</button>
+                </form>
+            </div>
+
+            <section class="card">
+                <h2>Exercises</h2>
+                <ul class="item-list" id="tAssignments"></ul>
+                <p class="empty" id="tAssignmentsEmpty">No exercises yet.</p>
+            </section>
+
+            <section class="card">
+                <h2>Takes to review</h2>
+                <ul class="item-list" id="tTakes"></ul>
+                <p class="empty" id="tTakesEmpty">When students send takes, they appear here.</p>
+            </section>
+
+            <section class="card hidden" id="reviewPanel">
+                <div class="card-header">
+                    <div>
+                        <p class="eyebrow">Review</p>
+                        <h2 id="rTitle">Take</h2>
+                        <p class="card-subtitle" id="rMeta"></p>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" type="button" id="closeReviewBtn">Close</button>
+                </div>
+                <canvas class="lane" id="reviewLane" aria-label="Target notes and the student's pitch"></canvas>
+                <p class="legend"><span class="dot dot-hit"></span>on note <span class="dot dot-near"></span>close
+                    <span class="dot dot-missed"></span>off <span class="dot dot-silent"></span>not sung
+                    <span class="dot dot-trace"></span>student's voice</p>
+                <audio id="rAudio" controls class="full-width"></audio>
+                <div class="result-tips" id="rTips"></div>
+                <form class="comment-form" id="commentForm">
+                    <input class="text-input" name="text" required maxlength="1000"
+                        placeholder="Comment at the current moment, e.g. lift the Ga">
+                    <button class="btn btn-primary btn-sm" type="submit" id="commentBtn">Comment at 0:00</button>
+                </form>
+                <ul class="comment-list" id="rComments"></ul>
+            </section>
+        </section>
+
+        <!-- ============ STUDENT ============ -->
+        <section id="studentView" class="view hidden">
+            <div class="card studio-banner">
+                <div>
+                    <p class="eyebrow">Student</p>
+                    <h2 id="sGreeting">Hello</h2>
+                    <p class="card-subtitle" id="sStudio"></p>
+                </div>
+                <p class="card-subtitle banner-hint">Bookmark this page. Its link is your personal key.
+                    Wear headphones for the best feedback.</p>
+            </div>
+
+            <section class="card">
+                <h2>Your exercises</h2>
+                <ul class="item-list" id="sAssignments"></ul>
+                <p class="empty" id="sAssignmentsEmpty">Your teacher hasn't published an exercise yet.</p>
+            </section>
+
+            <section class="card hidden" id="practicePanel">
+                <div class="card-header">
+                    <div>
+                        <p class="eyebrow" id="pLevel">Practice</p>
+                        <h2 id="pTitle">Exercise</h2>
+                        <p class="card-subtitle" id="pNotes"></p>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" type="button" id="closePracticeBtn">Close</button>
+                </div>
+
+                <div class="now-row">
+                    <div class="now-block">
+                        <span class="eyebrow">Sing</span>
+                        <span class="now-swara" id="pTarget">—</span>
+                    </div>
+                    <div class="now-block">
+                        <span class="eyebrow">You</span>
+                        <span class="now-swara" id="pYou">—</span>
+                        <span class="now-cents" id="pCents"></span>
+                    </div>
+                    <div class="now-block">
+                        <span class="eyebrow">Sa</span>
+                        <span class="now-sa" id="pSa">—</span>
+                    </div>
+                </div>
+
+                <div class="lane-wrap">
+                    <canvas class="lane" id="practiceLane" aria-label="Upcoming notes and your pitch"></canvas>
+                    <div class="lane-overlay" id="laneOverlay">Loading the melody…</div>
+                </div>
+
+                <div class="practice-controls">
+                    <button class="btn btn-primary btn-glow" type="button" id="startPracticeBtn" disabled>▶ Start</button>
+                    <button class="btn btn-outline" type="button" id="stopPracticeBtn" disabled>■ Stop</button>
+                    <label class="mini-field">Speed
+                        <select class="select-input" id="pSpeed">
+                            <option value="0.75">0.75×</option>
+                            <option value="0.9">0.9×</option>
+                            <option value="1" selected>1×</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="mixer">
+                    <label class="mixer-row">Teacher's voice
+                        <input type="range" id="guideVol" min="0" max="100" value="70"></label>
+                    <label class="mixer-row hidden" id="backingVolRow">Music
+                        <input type="range" id="backingVol" min="0" max="100" value="80"></label>
+                    <label class="mixer-row">Sa drone
+                        <input type="range" id="droneVol" min="0" max="100" value="35"></label>
+                </div>
+
+                <div class="results hidden" id="pResults">
+                    <div class="score-row">
+                        <div class="score-big"><span id="pScore">0</span><small>%</small></div>
+                        <div class="score-counts" id="pCounts"></div>
+                    </div>
+                    <div class="result-tips" id="pTips"></div>
+                    <audio id="pTakeAudio" controls class="full-width"></audio>
+                    <div class="practice-controls">
+                        <button class="btn btn-primary" type="button" id="sendTakeBtn">Send to teacher</button>
+                        <span class="card-subtitle" id="sendStatus"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>Your takes and feedback</h2>
+                <ul class="item-list" id="sTakes"></ul>
+                <p class="empty" id="sTakesEmpty">Takes you send to your teacher appear here with their comments.</p>
+            </section>
+        </section>
+    </main>
+
+    <div class="countdown hidden" id="countdown" aria-live="assertive"></div>
+
+    <footer class="app-footer">
+        <p>Sing. Match. Improve.</p>
+        <p><small><a href="https://github.com/aswinsamuel-codes/SA-Listen">Source Code (AGPL v3)</a></small></p>
+    </footer>
+
+    <script src="pitch.js?v=3"></script>
+    <script src="audio-utils.js?v=3"></script>
+    <script src="practice.js?v=2"></script>
+</body>
+
+</html>

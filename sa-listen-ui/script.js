@@ -744,14 +744,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // sustained notes as noise and AGC pumps the level, which made
             // takes sound choppy/"buffering". Echo cancellation is only
             // useful on speakers (it also gates the voice while music plays).
-            mediaStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: !onHeadphones,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    channelCount: 1
-                }
-            });
+            mediaStream = await navigator.mediaDevices.getUserMedia(singingMicConstraints(onHeadphones));
 
             ensureAudioContext();
 
@@ -916,15 +909,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (recordedChunks.length === 0) return;
 
         const compressed = new Blob(recordedChunks, { type: mimeType || 'audio/webm' });
-        let take = compressed;
-        let extension = (mimeType || '').includes('mp4') ? 'm4a' : 'webm';
-        try {
-            const decoded = await audioContext.decodeAudioData(await compressed.arrayBuffer());
-            take = encodeWav(decoded);
-            extension = 'wav';
-        } catch (e) {
-            console.warn('Could not convert take to WAV, keeping original format:', e);
-        }
+        const { blob: take, extension } = await recordingToWav(compressed, audioContext);
 
         if (sessionObjectUrl) URL.revokeObjectURL(sessionObjectUrl);
         sessionObjectUrl = URL.createObjectURL(take);
@@ -935,43 +920,6 @@ document.addEventListener('DOMContentLoaded', () => {
             downloadSessionBtn.download = `SA-Listen-Take-${dateStr}.${extension}`;
         }
         if (recordingPreview) recordingPreview.style.display = 'block';
-    }
-
-    /** 16-bit PCM WAV encoder for an AudioBuffer (mono or stereo). */
-    function encodeWav(audioBuffer) {
-        const channels = Math.min(2, audioBuffer.numberOfChannels);
-        const sampleRate = audioBuffer.sampleRate;
-        const frames = audioBuffer.length;
-        const dataSize = frames * channels * 2;
-        const buffer = new ArrayBuffer(44 + dataSize);
-        const view = new DataView(buffer);
-        const writeString = (offset, s) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); };
-
-        writeString(0, 'RIFF');
-        view.setUint32(4, 36 + dataSize, true);
-        writeString(8, 'WAVE');
-        writeString(12, 'fmt ');
-        view.setUint32(16, 16, true);          // fmt chunk size
-        view.setUint16(20, 1, true);           // PCM
-        view.setUint16(22, channels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * channels * 2, true);
-        view.setUint16(32, channels * 2, true);
-        view.setUint16(34, 16, true);          // bits per sample
-        writeString(36, 'data');
-        view.setUint32(40, dataSize, true);
-
-        const data = [];
-        for (let c = 0; c < channels; c++) data.push(audioBuffer.getChannelData(c));
-        let offset = 44;
-        for (let i = 0; i < frames; i++) {
-            for (let c = 0; c < channels; c++) {
-                const s = Math.max(-1, Math.min(1, data[c][i]));
-                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-                offset += 2;
-            }
-        }
-        return new Blob([buffer], { type: 'audio/wav' });
     }
 
     /**

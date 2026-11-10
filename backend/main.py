@@ -34,6 +34,8 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+import studio
+
 # All paths are resolved from this file, so the server behaves the same
 # whether it is started from the repo root or from backend/.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -509,6 +511,40 @@ def karaoke_status(job_id: str):
         raise HTTPException(status_code=404, detail="Unknown karaoke job (the server may have restarted).")
     job.pop("created", None)
     return job
+
+
+def separate_song_blocking(upload_path: str, upload_name: str) -> dict:
+    """Run a karaoke job synchronously (used by studio assignments).
+
+    The job deletes its work dir when done, so the upload is copied in.
+    """
+    work_dir = tempfile.mkdtemp(prefix="sa_listen_karaoke_")
+    ext = os.path.splitext(upload_path)[1]
+    job_input = os.path.join(work_dir, f"{safe_stem(upload_name)}{ext}")
+    shutil.copy(upload_path, job_input)
+
+    job_id = uuid.uuid4().hex
+    with KARAOKE_JOBS_LOCK:
+        KARAOKE_JOBS[job_id] = {
+            "status": "running", "stage": "Starting", "progress": None,
+            "title": None, "error": None, "result": None, "created": time.time(),
+        }
+    _run_karaoke_job(job_id, work_dir, upload_path=job_input, upload_name=upload_name)
+    with KARAOKE_JOBS_LOCK:
+        job = KARAOKE_JOBS.pop(job_id)
+    if job["status"] != "done":
+        raise RuntimeError(job.get("error") or "Vocal separation failed.")
+    return job["result"]
+
+
+# --------------------------------------------------------------------------
+# Teacher / student studios (see studio.py)
+# --------------------------------------------------------------------------
+
+DATA_DIR = os.environ.get("SA_LISTEN_DATA_DIR", os.path.join(BASE_DIR, "data"))
+studio.configure(DATA_DIR, separate=separate_song_blocking, validate_audio=validate_audio)
+app.include_router(studio.router)
+app.mount("/media", StaticFiles(directory=studio.media_dir()), name="media")
 
 
 # Frontend catch-all must be mounted last so it does not shadow the API.

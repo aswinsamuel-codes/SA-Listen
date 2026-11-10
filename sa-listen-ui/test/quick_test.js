@@ -6,7 +6,10 @@
 (function () {
     const isNode = typeof window === 'undefined';
     const lib = isNode ? require('../pitch.js') : window;
-    const { detectPitch, frequencyToCentsOffset, pitchClassCentsOffset, frequencyToNoteName } = lib;
+    const {
+        detectPitch, frequencyToCentsOffset, pitchClassCentsOffset, frequencyToNoteName,
+        noteNameToFrequency, swaraForFrequency, pitchContour, segmentNotes, scoreTake,
+    } = lib;
 
     let failures = 0;
 
@@ -72,6 +75,41 @@
         const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5;
         const noise = Float32Array.from({ length: 2048 }, rand);
         assert(detectPitch(noise, 48000) === null, 'White noise should return null');
+
+        // --- Sa-relative helpers ---
+        const sa = noteNameToFrequency('C#3');
+        assert(Math.abs(sa - 138.59) < 0.01, 'C#3 should be 138.59 Hz');
+        assert(swaraForFrequency(sa * 1.5, sa).swara === 'P', 'A fifth above Sa is Pa');
+        assert(swaraForFrequency(sa * Math.pow(2, 3 / 12), sa).swara === 'g', 'Three semitones above Sa is komal Ga');
+        assert(swaraForFrequency(sa / 2, sa).octave === -1, 'Half of Sa is mandra (lower) Sa');
+        assert(swaraForFrequency(sa * 2, sa).octave === 1, 'Double Sa is tara (upper) Sa');
+
+        // Synthetic exercise: S R G m P with vibrato, 0.5 s notes, 0.1 s gaps
+        const sr = 11025, seq = [0, 2, 4, 5, 7];
+        const sig = new Float32Array(Math.ceil(seq.length * 0.6 * sr));
+        let phase = 0;
+        for (let i = 0; i < sig.length; i++) {
+            const t = i / sr, k = Math.floor(t / 0.6);
+            if (k >= seq.length || t - k * 0.6 >= 0.5) continue;
+            phase += 2 * Math.PI * sa * Math.pow(2, (seq[k] + 0.15 * Math.sin(2 * Math.PI * 5.5 * t)) / 12) / sr;
+            sig[i] = 0.5 * Math.sin(phase) + 0.25 * Math.sin(2 * phase);
+        }
+        const contour = pitchContour(sig, sr);
+        const notes = segmentNotes(contour, sa);
+        assert(notes.map(n => n.swara || n.label).join(' ') === 'S R G m P',
+            `Segments S R G m P (got ${notes.map(n => n.label).join(' ')})`);
+
+        const late = contour.map(p => ({ t: p.t + 0.1, f: p.f ? p.f * 2 : null }));
+        assert(scoreTake(notes, late).score === 100, 'Perfect take an octave up and 0.1 s late scores 100');
+        const flatGa = contour.map(p => {
+            if (!p.f) return { t: p.t + 0.1, f: null };
+            const onGa = Math.round(12 * Math.log2(p.f / sa)) === 4;
+            return { t: p.t + 0.1, f: onGa ? p.f * Math.pow(2, -0.7 / 12) : p.f };
+        });
+        const flatResult = scoreTake(notes, flatGa, { tolerance: 50 });
+        assert(flatResult.notes[2].result !== 'hit' && flatResult.tips[0] && flatResult.tips[0].label === 'G',
+            'A flat Ga is flagged in the tips');
+        assert(scoreTake(notes, []).silent === notes.length, 'An empty take marks every note as not sung');
 
         if (isNode) {
             console.log(failures === 0 ? '\nAll tests passed.' : `\n${failures} test(s) failed.`);
